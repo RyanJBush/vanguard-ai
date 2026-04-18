@@ -1,5 +1,10 @@
 # Vanguard AI
 
+Vanguard AI is a production-style SOC threat detection monorepo that demonstrates practical security engineering across backend APIs, detection pipelines, and an analyst-facing frontend console.
+
+## Current State
+- Backend MVP: JWT auth + RBAC, event ingestion, detection pipeline, alert lifecycle, metrics APIs.
+- Frontend MVP: recruiter-ready SOC console connected to backend APIs with authenticated workflows.
 Vanguard AI is a production-style SOC threat detection monorepo that demonstrates practical security engineering across backend APIs, detection pipelines, data modeling, and analyst workflows.
 
 ## Current State
@@ -28,6 +33,30 @@ vanguard-ai/
   docker-compose.yml
 ```
 
+## Frontend Screens / Routes
+- `/login`
+- `/dashboard`
+- `/events`
+- `/alerts`
+- `/alerts/:alertId`
+- `/detections`
+- `/settings`
+
+## Backend API Highlights
+Base URL: `http://localhost:8000/api/v1`
+
+- `POST /auth/login`
+- `GET /auth/me`
+- `POST /events`
+- `GET /events`
+- `GET /detections`
+- `GET /alerts`
+- `GET /alerts/{id}`
+- `PATCH /alerts/{id}/status`
+- `GET /alerts/{id}/notes`
+- `POST /alerts/{id}/notes`
+- `GET /metrics/summary`
+- `GET /health`
 ## Backend API Highlights
 Base URL: `http://localhost:8000/api/v1`
 
@@ -47,6 +76,7 @@ Base URL: `http://localhost:8000/api/v1`
 - `viewer / viewer123`
 
 ## Required Environment Variables
+### Backend (`backend/.env`)
 Copy `backend/.env.example` to `backend/.env` and update values:
 - `APP_NAME`
 - `APP_ENV`
@@ -56,6 +86,11 @@ Copy `backend/.env.example` to `backend/.env` and update values:
 - `ALGORITHM`
 - `ACCESS_TOKEN_EXPIRE_MINUTES`
 - `DATABASE_URL`
+
+### Frontend (`frontend/.env`)
+- `VITE_API_BASE_URL` (default `http://localhost:8000/api/v1`)
+
+## Local Setup
 
 ## Local Setup
 
