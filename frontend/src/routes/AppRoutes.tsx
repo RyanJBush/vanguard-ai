@@ -32,6 +32,12 @@ export function AppRoutes() {
     <Routes>
       <Route path="/login" element={token ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
       <Route element={<ProtectedLayout />}>
+
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/events" element={<EventsPage />} />
         <Route path="/alerts" element={<AlertsPage />} />

@@ -9,6 +9,8 @@ from app.schemas.alerts import (
     InvestigationNoteCreate,
     InvestigationNoteResponse,
 )
+from app.models import Alert, AlertStatus, UserRole
+from app.schemas.alerts import AlertResponse, AlertStatusUpdate
 from app.schemas.auth import UserContext
 from app.services.dependencies import get_current_user_context, require_roles
 

@@ -8,6 +8,9 @@ export function AppLayout() {
       <div className="mx-auto flex max-w-[1400px]">
         <Sidebar />
         <main className="flex-1 p-8">
+      <div className="mx-auto flex max-w-7xl">
+        <Sidebar />
+        <main className="flex-1 p-6">
           <Outlet />
         </main>
       </div>

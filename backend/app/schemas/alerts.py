@@ -8,6 +8,7 @@ class AlertResponse(BaseModel):
     event_id: int
     title: str
     description: str
+    title: str
     severity: str
     status: str
     created_at: datetime

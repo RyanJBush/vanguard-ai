@@ -12,4 +12,6 @@ body {
   background-color: #020617;
   color: #e2e8f0;
   font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
+body {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
 }
