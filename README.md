@@ -1,131 +1,100 @@
 # Vanguard AI
 
-Vanguard AI is a production-style SOC threat detection monorepo that demonstrates practical security engineering across backend APIs, detection pipelines, and an analyst-facing frontend console.
+Vanguard AI is an AI-powered SOC threat detection platform that ingests security telemetry, applies rule + anomaly detections, and streamlines analyst triage workflows.
 
-## Current State
-- Backend MVP: JWT auth + RBAC, event ingestion, detection pipeline, alert lifecycle, metrics APIs.
-- Frontend MVP: recruiter-ready SOC console connected to backend APIs with authenticated workflows.
-Vanguard AI is a production-style SOC threat detection monorepo that demonstrates practical security engineering across backend APIs, detection pipelines, data modeling, and analyst workflows.
+## Overview
 
-## Current State
-This repository now includes a backend MVP for:
-- JWT-based demo auth with RBAC roles (`admin`, `analyst`, `viewer`)
-- Event ingestion and validation
-- Detection pipeline execution on ingestion
-- Automatic alert generation
-- Alert lifecycle updates (`open`, `investigating`, `resolved`)
-- Summary metrics for SOC dashboards
-- Seed script for realistic demo telemetry
+This repository is a production-style monorepo with:
+- **Backend**: FastAPI, SQLAlchemy, JWT auth with RBAC
+- **Frontend**: React + Vite + Tailwind CSS + Recharts
+- **Database**: PostgreSQL
+- **Detection/ML**: pandas + scikit-learn with practical SOC detection logic
+- **DevEx**: Docker Compose, Makefile, GitHub Actions CI
 
-## Monorepo Structure
+## Architecture
 
 ```text
-vanguard-ai/
-  backend/
-  frontend/
-  docs/
-  README.md
-  LICENSE
-  CONTRIBUTING.md
-  .gitignore
-  .editorconfig
-  Makefile
-  docker-compose.yml
+/backend   -> FastAPI API, detection pipeline, persistence, tests
+/frontend  -> SOC dashboard UI and API service clients
+/docs      -> Architecture, ports, and style guide
 ```
 
-## Frontend Screens / Routes
-- `/login`
-- `/dashboard`
-- `/events`
-- `/alerts`
-- `/alerts/:alertId`
-- `/detections`
-- `/settings`
+Additional architecture notes are in [/docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Backend API Highlights
-Base URL: `http://localhost:8000/api/v1`
+## Core Features (MVP)
 
-- `POST /auth/login`
-- `GET /auth/me`
-- `POST /events`
-- `GET /events`
-- `GET /detections`
-- `GET /alerts`
-- `GET /alerts/{id}`
-- `PATCH /alerts/{id}/status`
-- `GET /alerts/{id}/notes`
-- `POST /alerts/{id}/notes`
-- `GET /metrics/summary`
+- Secure login and identity endpoints (`/api/auth/login`, `/api/auth/me`)
+- Event ingestion and querying (`/api/events`)
+- Automated detections and alert generation on ingestion
+- Alert triage workflow including status updates
+- SOC dashboard KPIs, severity charting, event/alert tables, and filtering
+- Role-based access controls for Admin, Analyst, and Viewer
+
+## API Endpoints
+
 - `GET /health`
-## Backend API Highlights
-Base URL: `http://localhost:8000/api/v1`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/events`
+- `GET /api/events`
+- `GET /api/events/{id}`
+- `GET /api/alerts`
+- `GET /api/alerts/{id}`
+- `PATCH /api/alerts/{id}/status`
+- `GET /api/detections`
+- `GET /api/metrics/summary`
 
-- `POST /auth/login` – demo JWT login
-- `GET /auth/me` – current user context
-- `POST /events` – ingest security event and trigger detections
-- `GET /events` – list events
-- `GET /detections` – list detections
-- `GET /alerts` – list alerts
-- `PATCH /alerts/{id}/status` – update alert status
-- `GET /metrics/summary` – dashboard summary metrics
-- `GET /health` – service health
-
-## Demo Credentials
-- `admin / admin123`
-- `analyst / analyst123`
-- `viewer / viewer123`
-
-## Required Environment Variables
-### Backend (`backend/.env`)
-Copy `backend/.env.example` to `backend/.env` and update values:
-- `APP_NAME`
-- `APP_ENV`
-- `APP_DEBUG`
-- `API_V1_PREFIX`
-- `SECRET_KEY`
-- `ALGORITHM`
-- `ACCESS_TOKEN_EXPIRE_MINUTES`
-- `DATABASE_URL`
-
-### Frontend (`frontend/.env`)
-- `VITE_API_BASE_URL` (default `http://localhost:8000/api/v1`)
-
-## Local Setup
-
-## Local Setup
+## Quick Start
 
 ### Prerequisites
-- Python 3.11+
-- Node.js 20+
 - Docker + Docker Compose
+- Python 3.12+
+- Node.js 20+
 
-### Option A: local processes
-```bash
-make bootstrap
-make run-backend
-make run-frontend
-```
+### Run with Docker
 
-### Option B: containers
 ```bash
 docker compose up --build
 ```
 
-## Seed Demo Data
-After backend is running:
-```bash
-cd backend
-python -m scripts.seed_demo_data
-```
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000/docs
+- PostgreSQL: localhost:5432
 
-## Quality Commands
+### Local Development
+
 ```bash
+make install
 make lint
 make test
+make build
 ```
 
-## Next Milestones
-- Frontend integration with authenticated API calls
-- Alert triage workflows and investigation notes UI
-- Detection management UI and tuning controls
-- Migrations + production auth hardening
+### Demo Credentials
+
+- `admin / admin123`
+- `analyst / analyst123`
+- `viewer / viewer123`
+
+## Screenshots
+
+- Dashboard (SOC overview):  
+  ![Vanguard AI Dashboard](https://github.com/user-attachments/assets/7695e968-457f-43a1-a8f3-56a7216791dd)
+
+## Roadmap
+
+- Add streaming ingestion and queue-based processing
+- Expand investigation notes and case management workflows
+- Integrate threat intel enrichment and response automation
+- Add tenant isolation enhancements and audit trails
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Ports](docs/PORTS.md)
+- [Style Guide](docs/STYLEGUIDE.md)
+- [Contributing](CONTRIBUTING.md)
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

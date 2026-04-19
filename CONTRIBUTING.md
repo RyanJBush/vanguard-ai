@@ -1,15 +1,11 @@
 # Contributing
 
-Thanks for contributing to Vanguard AI.
-
-## Development Workflow
-1. Create a branch from `main`.
-2. Run `make bootstrap`.
-3. Implement changes with tests.
-4. Run `make lint` and `make test`.
-5. Open a pull request with architecture/security impact notes.
+## Development workflow
+1. Fork and branch from `main`.
+2. Run `make install`.
+3. Run `make lint` and `make test` before opening a PR.
 
 ## Standards
-- Keep changes scoped and documented.
-- Add tests for backend logic.
-- Use conventional, descriptive commit messages.
+- Keep changes focused and production-minded.
+- Add or update tests when behavior changes.
+- Follow role-based security and least-privilege patterns.

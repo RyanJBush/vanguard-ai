@@ -1,18 +1,22 @@
-.PHONY: bootstrap lint test run-backend run-frontend
+.PHONY: install backend-install frontend-install lint test build dev
 
-bootstrap:
-	cd backend && pip install -e .[dev]
+install: backend-install frontend-install
+
+backend-install:
+	cd backend && python -m pip install -r requirements.txt
+
+frontend-install:
 	cd frontend && npm install
 
 lint:
-	cd backend && ruff check app tests
+	cd backend && ruff check .
 	cd frontend && npm run lint
 
 test:
-	cd backend && pytest
+	cd backend && pytest -q
 
-run-backend:
-	cd backend && uvicorn app.main:app --reload --port 8000
+build:
+	cd frontend && npm run build
 
-run-frontend:
-	cd frontend && npm run dev
+dev:
+	docker compose up --build
