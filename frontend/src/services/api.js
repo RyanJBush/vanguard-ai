@@ -43,6 +43,12 @@ export const api = {
     }),
   getAlerts: () => request('/api/alerts'),
   getAlert: (id) => request(`/api/alerts/${id}`),
+  getAlertNotes: (id) => request(`/api/alerts/${id}/notes`),
+  createAlertNote: (id, note) =>
+    request(`/api/alerts/${id}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    }),
   patchAlertStatus: (id, status) =>
     request(`/api/alerts/${id}/status`, {
       method: 'PATCH',
