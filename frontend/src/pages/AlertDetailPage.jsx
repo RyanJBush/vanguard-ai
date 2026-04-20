@@ -4,20 +4,29 @@ import { useParams } from 'react-router-dom'
 import StatusBadge from '../components/StatusBadge'
 import { api } from '../services/api'
 
-const STATUSES = ['open', 'in_progress', 'resolved', 'dismissed']
+const STATUSES = ['open', 'triaged', 'investigating', 'escalated', 'closed']
 
 export default function AlertDetailPage() {
   const { alertId } = useParams()
   const [alert, setAlert] = useState(null)
   const [note, setNote] = useState('')
+  const [notes, setNotes] = useState([])
 
   useEffect(() => {
     api.getAlert(alertId).then(setAlert).catch(() => null)
+    api.getAlertNotes(alertId).then(setNotes).catch(() => null)
   }, [alertId])
 
   async function setStatus(status) {
     const updated = await api.patchAlertStatus(alertId, status)
     setAlert(updated)
+  }
+
+  async function addNote() {
+    if (!note.trim()) return
+    const saved = await api.createAlertNote(alertId, note.trim())
+    setNotes((existing) => [saved, ...existing])
+    setNote('')
   }
 
   return (
@@ -46,6 +55,14 @@ export default function AlertDetailPage() {
               <p className="text-slate-400">Explanation</p>
               <p>{alert.explanation}</p>
             </div>
+            <div>
+              <p className="text-slate-400">MITRE ATT&CK</p>
+              <p>{alert.mitre_techniques?.join(', ') || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-slate-400">Correlated Detections</p>
+              <p>{alert.dedup_count ?? 1}</p>
+            </div>
           </div>
         ) : (
           <p className="mt-4 text-slate-400">Loading alert...</p>
@@ -68,13 +85,29 @@ export default function AlertDetailPage() {
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-        <h3 className="font-semibold">Investigation Notes (MVP placeholder)</h3>
+        <h3 className="font-semibold">Investigation Notes</h3>
         <textarea
           className="mt-3 min-h-28 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="Capture analyst findings and next steps..."
         />
+        <div className="mt-3">
+          <button
+            onClick={addNote}
+            className="rounded-md bg-cyan-500 px-3 py-1.5 text-sm font-medium text-slate-950 hover:bg-cyan-400"
+          >
+            Save note
+          </button>
+        </div>
+        <div className="mt-4 space-y-2">
+          {notes.map((item) => (
+            <article key={item.id} className="rounded-md border border-slate-800 bg-slate-950 p-3 text-sm">
+              <p>{item.note}</p>
+            </article>
+          ))}
+          {notes.length === 0 ? <p className="text-sm text-slate-400">No notes yet.</p> : null}
+        </div>
       </section>
     </div>
   )

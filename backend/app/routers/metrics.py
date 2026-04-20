@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.dependencies import get_current_user
-from app.models import Alert, Event, User
+from app.models import Alert, AlertStatus, Event, User
 from app.schemas import MetricsSummary
 
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
@@ -27,7 +27,17 @@ def summary(
     )
     open_alerts = (
         db.query(func.count(Alert.id))
-        .filter(Alert.organization_id == current_user.organization_id, Alert.status == "open")
+        .filter(
+            Alert.organization_id == current_user.organization_id,
+            Alert.status.in_(
+                [
+                    AlertStatus.open,
+                    AlertStatus.triaged,
+                    AlertStatus.investigating,
+                    AlertStatus.escalated,
+                ]
+            ),
+        )
         .scalar()
     )
     high_severity_alerts = (
@@ -38,17 +48,77 @@ def summary(
         )
         .scalar()
     )
+    triaged_alerts = (
+        db.query(func.count(Alert.id))
+        .filter(Alert.organization_id == current_user.organization_id, Alert.status == AlertStatus.triaged)
+        .scalar()
+    )
+    investigating_alerts = (
+        db.query(func.count(Alert.id))
+        .filter(
+            Alert.organization_id == current_user.organization_id,
+            Alert.status == AlertStatus.investigating,
+        )
+        .scalar()
+    )
+    escalated_alerts = (
+        db.query(func.count(Alert.id))
+        .filter(Alert.organization_id == current_user.organization_id, Alert.status == AlertStatus.escalated)
+        .scalar()
+    )
+    closed_alerts = (
+        db.query(func.count(Alert.id))
+        .filter(Alert.organization_id == current_user.organization_id, Alert.status == AlertStatus.closed)
+        .scalar()
+    )
     detection_events = (
         db.query(func.count(func.distinct(Alert.event_id)))
         .filter(Alert.organization_id == current_user.organization_id)
         .scalar()
     )
+    detection_pairs = (
+        db.query(Alert.created_at, Event.occurred_at)
+        .join(Event, Event.id == Alert.event_id)
+        .filter(Alert.organization_id == current_user.organization_id)
+        .all()
+    )
+    resolution_pairs = (
+        db.query(Alert.created_at, Alert.closed_at)
+        .filter(
+            Alert.organization_id == current_user.organization_id,
+            Alert.status == AlertStatus.closed,
+            Alert.closed_at.is_not(None),
+        )
+        .all()
+    )
     coverage = (float(detection_events) / float(total_events) * 100.0) if total_events else 0.0
+    false_positive_rate = (
+        round((float(escalated_alerts) / float(total_alerts)) * 100.0, 2) if total_alerts else 0.0
+    )
+    avg_detection_latency_seconds = (
+        sum((created_at - occurred_at).total_seconds() for created_at, occurred_at in detection_pairs)
+        / len(detection_pairs)
+        if detection_pairs
+        else 0.0
+    )
+    avg_resolution_seconds = (
+        sum((closed_at - created_at).total_seconds() for created_at, closed_at in resolution_pairs)
+        / len(resolution_pairs)
+        if resolution_pairs
+        else 0.0
+    )
 
     return MetricsSummary(
         total_events=total_events,
         total_alerts=total_alerts,
         open_alerts=open_alerts,
         high_severity_alerts=high_severity_alerts,
+        triaged_alerts=triaged_alerts,
+        investigating_alerts=investigating_alerts,
+        escalated_alerts=escalated_alerts,
+        closed_alerts=closed_alerts,
+        mttd_minutes=round(float(avg_detection_latency_seconds) / 60.0, 2),
+        mttr_minutes=round(float(avg_resolution_seconds) / 60.0, 2),
+        false_positive_rate=false_positive_rate,
         detection_coverage=round(coverage, 2),
     )

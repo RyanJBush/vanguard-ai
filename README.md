@@ -41,6 +41,8 @@ Additional architecture notes are in [/docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 - `GET /api/alerts`
 - `GET /api/alerts/{id}`
 - `PATCH /api/alerts/{id}/status`
+- `GET /api/alerts/{id}/notes`
+- `POST /api/alerts/{id}/notes`
 - `GET /api/detections`
 - `GET /api/metrics/summary`
 
@@ -74,6 +76,7 @@ make build
 
 - `admin / admin123`
 - `analyst / analyst123`
+- `deteng / deteng123`
 - `viewer / viewer123`
 
 ## Screenshots
