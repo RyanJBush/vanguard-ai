@@ -106,7 +106,7 @@ export default function AlertDetailPage() {
               <p>{item.note}</p>
             </article>
           ))}
-          {notes.length === 0 ? <p className="text-sm text-slate-400">No notes yet.</p> : null}
+          {notes.length === 0 && <p className="text-sm text-slate-400">No notes yet.</p>}
         </div>
       </section>
     </div>

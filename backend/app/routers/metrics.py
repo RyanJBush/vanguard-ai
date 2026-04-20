@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.dependencies import get_current_user
-from app.models import Alert, AlertStatus, Event, User
+from app.models import Alert, AlertStatus, Event, InvestigationNote, User
 from app.schemas import MetricsSummary
 
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
@@ -50,7 +50,10 @@ def summary(
     )
     triaged_alerts = (
         db.query(func.count(Alert.id))
-        .filter(Alert.organization_id == current_user.organization_id, Alert.status == AlertStatus.triaged)
+        .filter(
+            Alert.organization_id == current_user.organization_id,
+            Alert.status == AlertStatus.triaged,
+        )
         .scalar()
     )
     investigating_alerts = (
@@ -63,12 +66,18 @@ def summary(
     )
     escalated_alerts = (
         db.query(func.count(Alert.id))
-        .filter(Alert.organization_id == current_user.organization_id, Alert.status == AlertStatus.escalated)
+        .filter(
+            Alert.organization_id == current_user.organization_id,
+            Alert.status == AlertStatus.escalated,
+        )
         .scalar()
     )
     closed_alerts = (
         db.query(func.count(Alert.id))
-        .filter(Alert.organization_id == current_user.organization_id, Alert.status == AlertStatus.closed)
+        .filter(
+            Alert.organization_id == current_user.organization_id,
+            Alert.status == AlertStatus.closed,
+        )
         .scalar()
     )
     detection_events = (
@@ -92,11 +101,43 @@ def summary(
         .all()
     )
     coverage = (float(detection_events) / float(total_events) * 100.0) if total_events else 0.0
+    closed_alert_ids = [
+        alert_id
+        for (alert_id,) in (
+            db.query(Alert.id)
+            .filter(
+                Alert.organization_id == current_user.organization_id,
+                Alert.status == AlertStatus.closed,
+            )
+            .all()
+        )
+    ]
+    false_positive_alert_ids = (
+        {
+            alert_id
+            for (alert_id,) in (
+                db.query(InvestigationNote.alert_id)
+                .filter(
+                    InvestigationNote.alert_id.in_(closed_alert_ids),
+                    InvestigationNote.note.ilike("%false positive%"),
+                )
+                .all()
+            )
+        }
+        if closed_alert_ids
+        else set()
+    )
+    false_positive_count = min(len(false_positive_alert_ids), int(closed_alerts))
     false_positive_rate = (
-        round((float(escalated_alerts) / float(total_alerts)) * 100.0, 2) if total_alerts else 0.0
+        round((false_positive_count / float(closed_alerts)) * 100.0, 2)
+        if closed_alerts
+        else 0.0
     )
     avg_detection_latency_seconds = (
-        sum((created_at - occurred_at).total_seconds() for created_at, occurred_at in detection_pairs)
+        sum(
+            (created_at - occurred_at).total_seconds()
+            for created_at, occurred_at in detection_pairs
+        )
         / len(detection_pairs)
         if detection_pairs
         else 0.0

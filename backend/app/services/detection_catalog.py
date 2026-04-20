@@ -7,7 +7,7 @@ class DetectionDefinition:
     title: str
     severity: str
     default_confidence: float
-    mitre_techniques: list[str]
+    mitre_techniques: tuple[str, ...]
     recommendation: str
     dedup_window_minutes: int = 30
 
@@ -18,7 +18,7 @@ DETECTION_CATALOG: dict[str, DetectionDefinition] = {
         title="Brute Force Login Attempts",
         severity="high",
         default_confidence=0.82,
-        mitre_techniques=["T1110"],
+        mitre_techniques=("T1110",),
         recommendation="Investigate source IP, lock impacted accounts, and enforce MFA.",
         dedup_window_minutes=45,
     ),
@@ -27,7 +27,7 @@ DETECTION_CATALOG: dict[str, DetectionDefinition] = {
         title="Unusual Login Hour",
         severity="medium",
         default_confidence=0.78,
-        mitre_techniques=["T1078"],
+        mitre_techniques=("T1078",),
         recommendation="Validate user activity and correlate with endpoint and VPN telemetry.",
         dedup_window_minutes=60,
     ),
@@ -36,7 +36,7 @@ DETECTION_CATALOG: dict[str, DetectionDefinition] = {
         title="Privilege Escalation Activity",
         severity="critical",
         default_confidence=0.92,
-        mitre_techniques=["T1078", "T1098"],
+        mitre_techniques=("T1078", "T1098"),
         recommendation="Review identity change history and rollback unauthorized role grants.",
         dedup_window_minutes=120,
     ),
@@ -45,7 +45,7 @@ DETECTION_CATALOG: dict[str, DetectionDefinition] = {
         title="High Volume Failed Access",
         severity="high",
         default_confidence=0.80,
-        mitre_techniques=["T1110", "T1078"],
+        mitre_techniques=("T1110", "T1078"),
         recommendation="Analyze failed access sources and block suspicious addresses.",
         dedup_window_minutes=30,
     ),

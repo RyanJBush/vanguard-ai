@@ -46,11 +46,15 @@ def _signal_from_catalog(
         severity=definition.severity,
         confidence=confidence,
         explanation=explanation,
-        mitre_techniques=definition.mitre_techniques,
+        mitre_techniques=list(definition.mitre_techniques),
         recommendation=definition.recommendation,
         dedup_window_minutes=definition.dedup_window_minutes,
         correlation_entity=correlation_entity,
     )
+
+
+def _as_naive_utc(value: datetime) -> datetime:
+    return value.astimezone(UTC).replace(tzinfo=None) if value.tzinfo else value
 
 
 def _failed_logins_same_ip(db: Session, event: Event) -> int:
@@ -91,7 +95,10 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                 _signal_from_catalog(
                     definition=definition,
                     confidence=min(0.99, 0.7 + failures / 20),
-                    explanation=f"{failures} failed login attempts from {event.source_ip} in the past hour.",
+                    explanation=(
+                        f"{failures} failed login attempts from "
+                        f"{event.source_ip} in the past hour."
+                    ),
                     correlation_entity=event.source_ip,
                 ),
             )
@@ -105,7 +112,8 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                     definition=definition,
                     confidence=0.78,
                     explanation=(
-                        f"Successful login by {event.username or 'unknown user'} at {hour:02d}:00 UTC."
+                        f"Successful login by {event.username or 'unknown user'} at "
+                        f"{hour:02d}:00 UTC."
                     ),
                     correlation_entity=event.username or event.source_ip or "unknown_user",
                 ),
@@ -118,7 +126,8 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                 definition=definition,
                 confidence=0.92,
                 explanation=(
-                    "Event indicates elevated privilege assignment or administrative access expansion."
+                    "Event indicates elevated privilege assignment or administrative "
+                    "access expansion."
                 ),
                 correlation_entity=event.username or "service_account",
             ),
@@ -148,7 +157,9 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                 _signal_from_catalog(
                     definition=definition,
                     confidence=confidence,
-                    explanation=f"{failed_volume} failed access events observed in a 10-minute window.",
+                    explanation=(
+                        f"{failed_volume} failed access events observed in a 10-minute window."
+                    ),
                     correlation_entity=event.source_ip or event.username or "org_scope",
                 ),
             )
@@ -165,7 +176,11 @@ def persist_detections_and_alerts(db: Session, event: Event, signals: list[Detec
             event_id=event.id,
             organization_id=event.organization_id,
             detection_type=signal.name,
-            title=detection_definition.title if detection_definition else signal.name.replace("_", " ").title(),
+            title=(
+                detection_definition.title
+                if detection_definition
+                else signal.name.replace("_", " ").title()
+            ),
             severity=signal.severity,
             confidence_score=signal.confidence,
             explanation=signal.explanation,
@@ -199,8 +214,14 @@ def persist_detections_and_alerts(db: Session, event: Event, signals: list[Detec
 
         if existing_alert:
             existing_alert.dedup_count += 1
-            existing_alert.last_seen_at = max(existing_alert.last_seen_at, event.occurred_at)
-            existing_alert.confidence_score = max(existing_alert.confidence_score, signal.confidence)
+            existing_alert.last_seen_at = max(
+                _as_naive_utc(existing_alert.last_seen_at),
+                _as_naive_utc(event.occurred_at),
+            )
+            existing_alert.confidence_score = max(
+                existing_alert.confidence_score,
+                signal.confidence,
+            )
             if existing_alert.id not in {alert.id for alert in alerts}:
                 alerts.append(existing_alert)
             detections.append(detection)

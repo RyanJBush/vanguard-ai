@@ -122,7 +122,11 @@ def test_alert_deduplication_and_correlation(client: TestClient):
 
     alerts = client.get("/api/alerts", headers=headers)
     assert alerts.status_code == 200
-    brute_force_alerts = [a for a in alerts.json() if a["correlation_id"].startswith("brute_force_login_rule")]
+    brute_force_alerts = [
+        alert
+        for alert in alerts.json()
+        if alert["correlation_id"].startswith("brute_force_login_rule")
+    ]
     assert len(brute_force_alerts) == 1
     assert brute_force_alerts[0]["dedup_count"] >= 2
 
@@ -144,12 +148,20 @@ def test_investigation_notes_and_expanded_statuses(client: TestClient):
     alert_id = alerts[0]["id"]
 
     for status in ["triaged", "investigating", "escalated"]:
-        updated = client.patch(f"/api/alerts/{alert_id}/status", json={"status": status}, headers=headers)
+        updated = client.patch(
+            f"/api/alerts/{alert_id}/status",
+            json={"status": status},
+            headers=headers,
+        )
         assert updated.status_code == 200
         assert updated.json()["status"] == status
         assert updated.json()["closed_at"] is None
 
-    closed = client.patch(f"/api/alerts/{alert_id}/status", json={"status": "closed"}, headers=headers)
+    closed = client.patch(
+        f"/api/alerts/{alert_id}/status",
+        json={"status": "closed"},
+        headers=headers,
+    )
     assert closed.status_code == 200
     assert closed.json()["status"] == "closed"
     assert closed.json()["closed_at"] is not None
@@ -205,6 +217,10 @@ def test_detection_catalog_metadata_exposed(client: TestClient):
 
     detections = client.get("/api/detections", headers=headers)
     assert detections.status_code == 200
-    brute_force = next(item for item in detections.json() if item["detection_type"] == "brute_force_login_rule")
+    brute_force = next(
+        item
+        for item in detections.json()
+        if item["detection_type"] == "brute_force_login_rule"
+    )
     assert "T1110" in brute_force["mitre_techniques"]
     assert brute_force["recommended_next_steps"]
