@@ -1,15 +1,30 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.dependencies import get_current_user
-from app.models import Event, User
-from app.schemas import EventCreate, EventIngestResponse, EventOut
+from app.dependencies import get_current_user, require_roles
+from app.models import Event, Role, User
+from app.schemas import (
+    EventCreate,
+    EventIngestResponse,
+    EventListResponse,
+    EventOut,
+    PaginationMeta,
+    SeedScenarioIngestResult,
+    SeedScenarioOut,
+)
 from app.services.detection_service import (
     default_occurred_at,
-    detect_event,
-    persist_detections_and_alerts,
 )
+from app.services.job_service import enqueue_detection_job, process_detection_job
+from app.services.seed_scenarios import (
+    SCENARIO_DEFINITIONS,
+    build_scenario_events,
+    list_seed_scenarios,
+)
+from app.services.pagination import paginate_query
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -17,6 +32,7 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 @router.post("", response_model=EventIngestResponse)
 def create_event(
     payload: EventCreate,
+    defer_detection: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -35,26 +51,108 @@ def create_event(
     db.add(event)
     db.flush()
 
-    signals = detect_event(db, event)
-    detections, alerts = persist_detections_and_alerts(db, event, signals)
+    job = enqueue_detection_job(
+        db,
+        organization_id=current_user.organization_id,
+        event_id=event.id,
+    )
+
+    detections = []
+    alerts = []
+    if not defer_detection:
+        process_detection_job(db, job)
+        detections = list(event.detections)
+        alerts = [detection.alert for detection in detections if detection.alert]
     db.commit()
     db.refresh(event)
 
-    return {"event": event, "detections": detections, "alerts": alerts}
+    return {
+        "event": event,
+        "detections": detections,
+        "alerts": alerts,
+        "job_id": job.id,
+    }
 
 
-@router.get("", response_model=list[EventOut])
+@router.get("", response_model=EventListResponse)
 def list_events(
-    limit: int = 100,
+    page: int = 1,
+    page_size: int = 50,
+    event_type: str | None = None,
+    severity: str | None = None,
+    sort_by: str = "occurred_at",
+    sort_order: str = "desc",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
-        db.query(Event)
-        .filter(Event.organization_id == current_user.organization_id)
-        .order_by(Event.occurred_at.desc())
-        .limit(limit)
-        .all()
+    query = db.query(Event).filter(Event.organization_id == current_user.organization_id)
+    if event_type:
+        query = query.filter(Event.event_type == event_type)
+    if severity:
+        query = query.filter(Event.severity == severity)
+
+    sort_column = Event.created_at if sort_by == "created_at" else Event.occurred_at
+    query = query.order_by(sort_column.asc() if sort_order == "asc" else sort_column.desc())
+    items, total, safe_page, safe_page_size = paginate_query(query, page=page, page_size=page_size)
+    return EventListResponse(
+        items=items,
+        pagination=PaginationMeta(page=safe_page, page_size=safe_page_size, total=total),
+    )
+
+
+@router.get("/scenarios", response_model=list[SeedScenarioOut])
+def list_event_scenarios(
+    _: User = Depends(get_current_user),
+):
+    return [
+        SeedScenarioOut(
+            key=item.key,
+            title=item.title,
+            description=item.description,
+            log_types=list(item.log_types),
+            expected_detections=list(item.expected_detections),
+        )
+        for item in list_seed_scenarios()
+    ]
+
+
+@router.post("/scenarios/{scenario_key}/seed", response_model=SeedScenarioIngestResult)
+def seed_event_scenario(
+    scenario_key: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.admin, Role.detection_engineer)),
+):
+    if scenario_key not in SCENARIO_DEFINITIONS:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    events = build_scenario_events(
+        scenario_key=scenario_key,
+        organization_id=current_user.organization_id,
+        now=now,
+    )
+    db.add_all(events)
+    db.flush()
+
+    detections_generated = 0
+    alerts_generated = 0
+    for event in events:
+        job = enqueue_detection_job(
+            db,
+            organization_id=current_user.organization_id,
+            event_id=event.id,
+        )
+        generated_detections, generated_alerts = process_detection_job(db, job)
+        detections_generated += generated_detections
+        alerts_generated += generated_alerts
+
+    db.commit()
+
+    return SeedScenarioIngestResult(
+        scenario=scenario_key,
+        events_ingested=len(events),
+        detections_generated=detections_generated,
+        alerts_generated=alerts_generated,
     )
 
 

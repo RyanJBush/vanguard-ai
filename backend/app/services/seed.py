@@ -1,10 +1,12 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 from app.models import Event, Organization, Role, User
 from app.security import hash_password
-from app.services.detection_service import detect_event, persist_detections_and_alerts
+from app.services.feature_flags import ensure_default_feature_flags
+from app.services.job_service import enqueue_detection_job, process_detection_job
+from app.services.seed_scenarios import build_scenario_events
 
 
 def seed_demo_data(db: Session) -> None:
@@ -46,9 +48,10 @@ def seed_demo_data(db: Session) -> None:
         ),
     ]
     db.add_all(users)
+    ensure_default_feature_flags(db, org.id)
 
-    now = datetime.now(UTC).replace(tzinfo=None)
-    events = [
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    baseline_events = [
         Event(
             organization_id=org.id,
             source="auth",
@@ -65,116 +68,24 @@ def seed_demo_data(db: Session) -> None:
                 "department": "Finance",
                 "user_role": "Analyst",
                 "asset_criticality": "medium",
-                "scenario": "password_spray_attempt",
-            },
-        ),
-        Event(
-            organization_id=org.id,
-            source="auth",
-            source_ip="192.168.22.5",
-            username="jdoe",
-            event_type="login_success",
-            severity="low",
-            message="User login succeeded",
-            occurred_at=now - timedelta(hours=1),
-            event_metadata={
-                "log_type": "auth",
-                "geolocation": "DE",
-                "hostname": "vpn-jump-02",
-                "department": "Finance",
-                "user_role": "Analyst",
-                "asset_criticality": "medium",
-                "scenario": "suspicious_after_hours_access",
-            },
-        ),
-        Event(
-            organization_id=org.id,
-            source="cloud",
-            source_ip="10.10.4.1",
-            username="svc-backup",
-            event_type="privilege_change",
-            severity="high",
-            message="Admin role granted to service account",
-            occurred_at=now - timedelta(minutes=20),
-            event_metadata={
-                "log_type": "cloud",
-                "geolocation": "US",
-                "hostname": "aws-iam-control",
-                "department": "Platform",
-                "user_role": "Service",
-                "asset_criticality": "high",
-                "ticket": "INC-1088",
-                "scenario": "cloud_privilege_escalation",
-            },
-        ),
-        Event(
-            organization_id=org.id,
-            source="endpoint",
-            source_ip="10.6.4.12",
-            username="jdoe",
-            event_type="process_execution",
-            severity="medium",
-            message="PowerShell launched encoded command",
-            occurred_at=now - timedelta(minutes=18),
-            event_metadata={
-                "log_type": "endpoint",
-                "geolocation": "US",
-                "hostname": "wkstn-101",
-                "department": "Finance",
-                "user_role": "Analyst",
-                "asset_criticality": "medium",
-                "scenario": "initial_access_payload_execution",
-            },
-        ),
-        Event(
-            organization_id=org.id,
-            source="firewall",
-            source_ip="203.0.113.44",
-            username=None,
-            event_type="connection_allowed",
-            severity="high",
-            message="Outbound connection to known command-and-control IP",
-            occurred_at=now - timedelta(minutes=16),
-            event_metadata={
-                "log_type": "firewall",
-                "geolocation": "US",
-                "hostname": "edge-fw-01",
-                "department": "Network",
-                "user_role": "N/A",
-                "asset_criticality": "critical",
-                "threat_intel_match": True,
-                "scenario": "c2_egress_channel",
+                "scenario": "baseline_auth_noise",
+                "known_benign": True,
             },
         ),
     ]
 
-    brute_force_ip = "198.51.100.23"
-    for minute_offset in range(12, 5, -1):
-        events.append(
-            Event(
-                organization_id=org.id,
-                source="auth",
-                source_ip=brute_force_ip,
-                username="finance-user",
-                event_type="login_failed",
-                severity="medium",
-                message="Failed login due to invalid password",
-                occurred_at=now - timedelta(minutes=minute_offset),
-                event_metadata={
-                    "log_type": "auth",
-                    "geolocation": "RU",
-                    "hostname": "idp-prod-01",
-                    "department": "Finance",
-                    "user_role": "Analyst",
-                    "asset_criticality": "high",
-                    "scenario": "password_spray_attempt",
-                },
-            )
-        )
+    scenario_events = []
+    for key in [
+        "credential_access_password_spray",
+        "identity_privilege_escalation",
+        "command_and_control_egress",
+    ]:
+        scenario_events.extend(build_scenario_events(scenario_key=key, organization_id=org.id, now=now))
 
+    events = baseline_events + scenario_events
     db.add_all(events)
     db.flush()
     for event in events:
-        signals = detect_event(db, event)
-        persist_detections_and_alerts(db, event, signals)
+        job = enqueue_detection_job(db, organization_id=org.id, event_id=event.id)
+        process_detection_job(db, job)
     db.commit()

@@ -33,18 +33,43 @@ Additional architecture notes are in [/docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 ## API Endpoints
 
 - `GET /health`
+- `GET /ready`
+- `GET /health/dependencies`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `POST /api/events`
 - `GET /api/events`
 - `GET /api/events/{id}`
+- `GET /api/events/scenarios`
+- `POST /api/events/scenarios/{scenario_key}/seed`
 - `GET /api/alerts`
 - `GET /api/alerts/{id}`
 - `PATCH /api/alerts/{id}/status`
+- `PATCH /api/alerts/{id}/assign`
 - `GET /api/alerts/{id}/notes`
 - `POST /api/alerts/{id}/notes`
+- `GET /api/alerts/{id}/timeline`
+- `POST /api/alerts/{id}/feedback`
+- `GET /api/alerts/{id}/ai-summary`
+- `GET /api/alerts/{id}/ai-triage`
 - `GET /api/detections`
+- `GET /api/detections/catalog`
+- `GET /api/incidents`
+- `POST /api/incidents`
+- `GET /api/incidents/{id}`
+- `PATCH /api/incidents/{id}/status`
+- `GET /api/incidents/{id}/ai-wrapup`
+- `GET /api/jobs`
+- `POST /api/jobs/process-pending`
+- `GET /api/platform/feature-flags`
+- `PATCH /api/platform/feature-flags/{flag_key}`
+- `GET /api/platform/audit-logs`
 - `GET /api/metrics/summary`
+- `GET /api/metrics/kpis`
+- `GET /api/metrics/detection-comparison`
+- `GET /api/metrics/jobs`
+- `GET /api/metrics/detection-quality`
+- `GET /api/metrics/scenario-benchmarks`
 
 ## Quick Start
 

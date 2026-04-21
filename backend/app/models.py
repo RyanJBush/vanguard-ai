@@ -22,6 +22,20 @@ class AlertStatus(str, enum.Enum):
     closed = "closed"
 
 
+class IncidentStatus(str, enum.Enum):
+    open = "open"
+    investigating = "investigating"
+    contained = "contained"
+    closed = "closed"
+
+
+class DetectionJobStatus(str, enum.Enum):
+    queued = "queued"
+    processing = "processing"
+    completed = "completed"
+    failed = "failed"
+
+
 class Organization(Base):
     __tablename__ = "organizations"
 
@@ -68,6 +82,7 @@ class Detection(Base):
     event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), index=True)
     organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
     detection_type: Mapped[str] = mapped_column(String(120), index=True)
+    detection_method: Mapped[str] = mapped_column(String(40), default="rule", index=True)
     title: Mapped[str] = mapped_column(String(255))
     severity: Mapped[str] = mapped_column(String(20), index=True)
     confidence_score: Mapped[float] = mapped_column(Float)
@@ -94,6 +109,9 @@ class Alert(Base):
     explanation: Mapped[str] = mapped_column(Text)
     mitre_techniques: Mapped[list[str]] = mapped_column(JSON, default=list)
     correlation_id: Mapped[str] = mapped_column(String(255), index=True)
+    incident_id: Mapped[int | None] = mapped_column(ForeignKey("incidents.id"), nullable=True, index=True)
+    assigned_analyst_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    recommended_next_steps: Mapped[str] = mapped_column(Text, default="")
     dedup_count: Mapped[int] = mapped_column(Integer, default=1)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
@@ -101,7 +119,11 @@ class Alert(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     detection: Mapped[Detection] = relationship(back_populates="alert")
+    incident: Mapped["Incident | None"] = relationship(back_populates="alerts")
     notes: Mapped[list["InvestigationNote"]] = relationship(
+        back_populates="alert", cascade="all, delete-orphan"
+    )
+    timeline_entries: Mapped[list["AlertTimelineEntry"]] = relationship(
         back_populates="alert", cascade="all, delete-orphan"
     )
 
@@ -116,3 +138,87 @@ class InvestigationNote(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     alert: Mapped[Alert] = relationship(back_populates="notes")
+
+
+class Incident(Base):
+    __tablename__ = "incidents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255), index=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[IncidentStatus] = mapped_column(Enum(IncidentStatus), default=IncidentStatus.open)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    assigned_analyst_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    alerts: Mapped[list[Alert]] = relationship(back_populates="incident")
+
+
+class AlertTimelineEntry(Base):
+    __tablename__ = "alert_timeline_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"), index=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(120), index=True)
+    details: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    alert: Mapped[Alert] = relationship(back_populates="timeline_entries")
+
+
+class FeatureFlag(Base):
+    __tablename__ = "feature_flags"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    key: Mapped[str] = mapped_column(String(120), index=True)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(120), index=True)
+    target_type: Mapped[str] = mapped_column(String(120), index=True)
+    target_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    details: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AnalystFeedback(Base):
+    __tablename__ = "analyst_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"), index=True)
+    analyst_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    is_true_positive: Mapped[bool] = mapped_column(default=True)
+    tuning_notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DetectionJob(Base):
+    __tablename__ = "detection_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), index=True)
+    status: Mapped[DetectionJobStatus] = mapped_column(
+        Enum(DetectionJobStatus),
+        default=DetectionJobStatus.queued,
+        index=True,
+    )
+    detections_generated: Mapped[int] = mapped_column(Integer, default=0)
+    alerts_generated: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
