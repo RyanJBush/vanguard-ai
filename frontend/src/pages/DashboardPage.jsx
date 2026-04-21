@@ -14,10 +14,18 @@ function Kpi({ label, value }) {
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState(null)
+  const [kpis, setKpis] = useState(null)
+  const [quality, setQuality] = useState(null)
+  const [jobMetrics, setJobMetrics] = useState(null)
+  const [benchmarks, setBenchmarks] = useState([])
   const [alerts, setAlerts] = useState([])
 
   useEffect(() => {
     api.getSummary().then(setSummary).catch(() => null)
+    api.getKpis().then(setKpis).catch(() => null)
+    api.getDetectionQuality().then(setQuality).catch(() => null)
+    api.getJobMetrics().then(setJobMetrics).catch(() => null)
+    api.getScenarioBenchmarks().then(setBenchmarks).catch(() => null)
     api.getAlerts().then(setAlerts).catch(() => null)
   }, [])
 
@@ -37,15 +45,21 @@ export default function DashboardPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Total Events" value={summary?.total_events ?? '-'} />
         <Kpi label="Total Alerts" value={summary?.total_alerts ?? '-'} />
-        <Kpi label="Open Alerts" value={summary?.open_alerts ?? '-'} />
-        <Kpi label="High Severity" value={summary?.high_severity_alerts ?? '-'} />
+        <Kpi label="Open Alerts" value={kpis?.open_alerts ?? '-'} />
+        <Kpi label="High Severity" value={kpis?.high_severity_alerts ?? '-'} />
         <Kpi label="Detection Coverage" value={`${summary?.detection_coverage ?? 0}%`} />
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <Kpi label="MTTD (min)" value={summary?.mttd_minutes ?? '-'} />
-        <Kpi label="MTTR (min)" value={summary?.mttr_minutes ?? '-'} />
-        <Kpi label="False Positive Rate" value={`${summary?.false_positive_rate ?? 0}%`} />
+        <Kpi label="MTTD (min)" value={kpis?.mttd_minutes ?? '-'} />
+        <Kpi label="MTTR (min)" value={kpis?.mttr_minutes ?? '-'} />
+        <Kpi label="False Positive Rate" value={`${quality?.false_positive_rate ?? 0}%`} />
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <Kpi label="Detection Precision" value={`${quality?.precision ?? 0}%`} />
+        <Kpi label="Jobs Queued" value={jobMetrics?.queued ?? '-'} />
+        <Kpi label="Jobs Completed" value={jobMetrics?.completed ?? '-'} />
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
@@ -60,6 +74,30 @@ export default function DashboardPage() {
               <Bar dataKey="count" fill="#22d3ee" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+        <h2 className="mb-4 text-lg font-semibold">Scenario Benchmark Coverage</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="text-slate-400">
+              <tr>
+                <th className="pb-2">Scenario</th>
+                <th className="pb-2">Coverage</th>
+                <th className="pb-2">Observed Detections</th>
+              </tr>
+            </thead>
+            <tbody>
+              {benchmarks.map((item) => (
+                <tr key={item.scenario} className="border-t border-slate-800">
+                  <td className="py-2 pr-4">{item.scenario}</td>
+                  <td className="py-2 pr-4">{item.coverage_percent}%</td>
+                  <td className="py-2 pr-4">{item.observed_detections.join(', ') || 'None'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
     </div>

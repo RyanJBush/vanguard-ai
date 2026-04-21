@@ -35,13 +35,23 @@ export const api = {
     }),
   me: () => request('/api/auth/me'),
   getSummary: () => request('/api/metrics/summary'),
-  getEvents: () => request('/api/events'),
+  getKpis: () => request('/api/metrics/kpis'),
+  getDetectionQuality: () => request('/api/metrics/detection-quality'),
+  getJobMetrics: () => request('/api/metrics/jobs'),
+  getScenarioBenchmarks: () => request('/api/metrics/scenario-benchmarks'),
+  getEvents: async () => {
+    const response = await request('/api/events')
+    return response.items ?? []
+  },
   createEvent: (payload) =>
     request('/api/events', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  getAlerts: () => request('/api/alerts'),
+  getAlerts: async () => {
+    const response = await request('/api/alerts')
+    return response.items ?? []
+  },
   getAlert: (id) => request(`/api/alerts/${id}`),
   getAlertNotes: (id) => request(`/api/alerts/${id}/notes`),
   createAlertNote: (id, note) =>
