@@ -6,6 +6,7 @@ const navItems = [
   ['Dashboard', '/dashboard'],
   ['Events', '/events'],
   ['Alerts', '/alerts'],
+  ['Incidents', '/incidents'],
   ['Detections', '/detections'],
   ['Settings', '/settings'],
 ]

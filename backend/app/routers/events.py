@@ -7,6 +7,8 @@ from app.db import get_db
 from app.dependencies import get_current_user, require_roles
 from app.models import Event, Role, User
 from app.schemas import (
+    BatchEventIngestRequest,
+    BatchEventIngestResponse,
     EventCreate,
     EventIngestResponse,
     EventListResponse,
@@ -72,6 +74,53 @@ def create_event(
         "alerts": alerts,
         "job_id": job.id,
     }
+
+
+@router.post("/batch", response_model=BatchEventIngestResponse)
+def create_events_batch(
+    payload: BatchEventIngestRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    detections_generated = 0
+    alerts_generated = 0
+    job_ids: list[int] = []
+
+    for item in payload.events:
+        event = Event(
+            organization_id=current_user.organization_id,
+            source=item.source,
+            source_ip=item.source_ip,
+            username=item.username,
+            event_type=item.event_type,
+            severity=item.severity,
+            status=item.status,
+            message=item.message,
+            event_metadata=item.metadata,
+            occurred_at=default_occurred_at(item.occurred_at),
+        )
+        db.add(event)
+        db.flush()
+
+        job = enqueue_detection_job(
+            db,
+            organization_id=current_user.organization_id,
+            event_id=event.id,
+        )
+        job_ids.append(job.id)
+
+        if not payload.defer_detection:
+            generated_detections, generated_alerts = process_detection_job(db, job)
+            detections_generated += generated_detections
+            alerts_generated += generated_alerts
+
+    db.commit()
+    return BatchEventIngestResponse(
+        events_ingested=len(payload.events),
+        detections_generated=detections_generated,
+        alerts_generated=alerts_generated,
+        job_ids=job_ids,
+    )
 
 
 @router.get("", response_model=EventListResponse)
