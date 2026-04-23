@@ -12,6 +12,7 @@ from app.db import Base, get_db
 from app.main import app
 from app.models import Organization, Role, User
 from app.security import hash_password
+from app.security import create_access_token
 
 TEST_DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -72,6 +73,13 @@ def test_health(client: TestClient):
     deps = client.get("/health/dependencies")
     assert deps.status_code == 200
     assert "database" in deps.json()["dependencies"]
+
+
+def test_stale_token_role_rejected(client: TestClient):
+    bad_token = create_access_token("admin", "Viewer")
+    response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {bad_token}"})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Stale token role"
 
 
 def test_brute_force_alert_generation(client: TestClient):
@@ -562,3 +570,129 @@ def test_detection_quality_and_scenario_benchmarks(client: TestClient):
     benchmarks = client.get("/api/metrics/scenario-benchmarks", headers=headers)
     assert benchmarks.status_code == 200
     assert any(item["scenario"] == "identity_privilege_escalation" for item in benchmarks.json())
+
+
+def test_batch_event_ingest_generates_detections_and_alerts(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "events": [
+            {
+                "source": "identity_provider",
+                "source_ip": "198.51.100.222",
+                "username": "jdoe",
+                "event_type": "login_failed",
+                "message": "Failed login",
+            }
+            for _ in range(6)
+        ]
+    }
+    response = client.post("/api/events/batch", json=payload, headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["events_ingested"] == 6
+    assert body["detections_generated"] >= 1
+    assert body["alerts_generated"] >= 1
+    assert len(body["job_ids"]) == 6
+
+
+def test_batch_event_ingest_deferred_processing(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "defer_detection": True,
+        "events": [
+            {
+                "source": "identity_provider",
+                "source_ip": "203.0.113.88",
+                "username": "jdoe",
+                "event_type": "login_failed",
+                "message": "Failed login",
+            }
+            for _ in range(6)
+        ],
+    }
+    response = client.post("/api/events/batch", json=payload, headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["events_ingested"] == 6
+    assert body["detections_generated"] == 0
+    assert body["alerts_generated"] == 0
+
+    alerts_before = client.get("/api/alerts", headers=headers)
+    assert alerts_before.status_code == 200
+    assert alerts_before.json()["items"] == []
+
+    process = client.post("/api/jobs/process-pending", headers=headers)
+    assert process.status_code == 200
+
+    alerts_after = client.get("/api/alerts", headers=headers)
+    assert alerts_after.status_code == 200
+    assert len(alerts_after.json()["items"]) >= 1
+
+
+def test_list_analysts_endpoint(client: TestClient):
+    headers = auth_headers(client)
+    response = client.get("/api/auth/analysts", headers=headers)
+    assert response.status_code == 200
+    usernames = {item["username"] for item in response.json()}
+    assert "admin" in usernames
+
+
+def test_threat_intel_match_detection(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "source": "firewall",
+        "source_ip": "203.0.113.44",
+        "event_type": "connection_allowed",
+        "message": "Outbound connection to suspicious destination",
+        "metadata": {"threat_intel_match": True, "ioc": "203.0.113.44"},
+    }
+    response = client.post("/api/events", json=payload, headers=headers)
+    assert response.status_code == 200
+    detection_types = {item["detection_type"] for item in response.json()["detections"]}
+    assert "threat_intel_match_indicator" in detection_types
+
+
+def test_impossible_travel_detection(client: TestClient):
+    headers = auth_headers(client)
+    first_payload = {
+        "source": "vpn_gateway",
+        "username": "analyst",
+        "source_ip": "198.51.100.8",
+        "event_type": "login_success",
+        "message": "Successful login from US",
+        "metadata": {"geolocation": "US"},
+    }
+    second_payload = {
+        "source": "vpn_gateway",
+        "username": "analyst",
+        "source_ip": "203.0.113.8",
+        "event_type": "login_success",
+        "message": "Successful login from DE",
+        "metadata": {"geolocation": "DE"},
+    }
+    first = client.post("/api/events", json=first_payload, headers=headers)
+    assert first.status_code == 200
+    second = client.post("/api/events", json=second_payload, headers=headers)
+    assert second.status_code == 200
+    detection_types = {item["detection_type"] for item in second.json()["detections"]}
+    assert "impossible_travel_login_anomaly" in detection_types
+
+
+def test_correlation_hotspots_metric(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "source": "identity_provider",
+        "source_ip": "198.51.100.77",
+        "username": "jdoe",
+        "event_type": "login_failed",
+        "message": "Failed login",
+    }
+    for _ in range(6):
+        response = client.post("/api/events", json=payload, headers=headers)
+        assert response.status_code == 200
+
+    metrics = client.get("/api/metrics/correlation-hotspots", headers=headers)
+    assert metrics.status_code == 200
+    rows = metrics.json()
+    assert len(rows) >= 1
+    assert rows[0]["max_dedup_count"] >= 1

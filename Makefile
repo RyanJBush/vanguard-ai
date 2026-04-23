@@ -1,4 +1,4 @@
-.PHONY: install backend-install frontend-install lint test build dev
+.PHONY: install backend-install frontend-install lint test build dev backend-dev frontend-dev
 
 install: backend-install frontend-install
 
@@ -20,3 +20,9 @@ build:
 
 dev:
 	docker compose up --build
+
+backend-dev:
+	cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+frontend-dev:
+	cd frontend && npm run dev

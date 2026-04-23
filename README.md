@@ -92,6 +92,23 @@ docker compose up --build
 
 ```bash
 make install
+cp .env.example .env
+# Optional: set VANGUARD_DATABASE_URL to a PostgreSQL DSN in .env
+```
+
+Run locally in two terminals:
+
+```bash
+# Terminal 1
+cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Terminal 2
+cd frontend && npm run dev
+```
+
+Quality checks:
+
+```bash
 make lint
 make test
 make build
@@ -103,6 +120,20 @@ make build
 - `analyst / analyst123`
 - `deteng / deteng123`
 - `viewer / viewer123`
+
+### Environment Variables
+
+Use `.env.example` as a starting point.
+
+Backend (`VANGUARD_` prefix):
+- `VANGUARD_ENVIRONMENT`
+- `VANGUARD_DATABASE_URL` (default local: `sqlite:///./vanguard_ai.db`)
+- `VANGUARD_JWT_SECRET`
+- `VANGUARD_JWT_ALGORITHM`
+- `VANGUARD_JWT_EXP_MINUTES`
+
+Frontend:
+- `VITE_API_BASE_URL` (default: `http://localhost:8000`)
 
 ## Screenshots
 
@@ -121,6 +152,8 @@ make build
 - [Architecture](docs/ARCHITECTURE.md)
 - [Ports](docs/PORTS.md)
 - [Style Guide](docs/STYLEGUIDE.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
+- [Demo Runbook](docs/DEMO_RUNBOOK.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## License
