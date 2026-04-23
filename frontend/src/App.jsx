@@ -7,6 +7,7 @@ import AlertsPage from './pages/AlertsPage'
 import DashboardPage from './pages/DashboardPage'
 import DetectionsPage from './pages/DetectionsPage'
 import EventsPage from './pages/EventsPage'
+import IncidentsPage from './pages/IncidentsPage'
 import LoginPage from './pages/LoginPage'
 import SettingsPage from './pages/SettingsPage'
 import { api, authStore } from './services/api'
@@ -99,6 +100,14 @@ export default function App() {
           element={
             <ProtectedRoute user={user}>
               <AlertDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/incidents"
+          element={
+            <ProtectedRoute user={user}>
+              <IncidentsPage />
             </ProtectedRoute>
           }
         />

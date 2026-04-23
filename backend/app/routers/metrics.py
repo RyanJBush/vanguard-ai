@@ -17,6 +17,7 @@ from app.models import (
 )
 from app.schemas import (
     DetectionComparisonOut,
+    CorrelationHotspotOut,
     DetectionMethodMetrics,
     DetectionQualityOut,
     JobMetricsOut,
@@ -334,3 +335,33 @@ def scenario_benchmarks(
             )
         )
     return results
+
+
+@router.get("/correlation-hotspots", response_model=list[CorrelationHotspotOut])
+def correlation_hotspots(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(
+            Alert.correlation_id,
+            func.count(Alert.id).label("alert_count"),
+            func.max(Alert.dedup_count).label("max_dedup_count"),
+            func.avg(Alert.confidence_score).label("avg_confidence"),
+        )
+        .filter(Alert.organization_id == current_user.organization_id)
+        .group_by(Alert.correlation_id)
+        .order_by(func.max(Alert.dedup_count).desc(), func.count(Alert.id).desc())
+        .limit(min(max(limit, 1), 50))
+        .all()
+    )
+    return [
+        CorrelationHotspotOut(
+            correlation_id=correlation_id,
+            alert_count=int(alert_count or 0),
+            max_dedup_count=int(max_dedup_count or 0),
+            avg_confidence=round(float(avg_confidence or 0.0), 3),
+        )
+        for correlation_id, alert_count, max_dedup_count, avg_confidence in rows
+    ]
