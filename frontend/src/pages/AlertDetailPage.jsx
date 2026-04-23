@@ -11,104 +11,22 @@ export default function AlertDetailPage() {
   const [alert, setAlert] = useState(null)
   const [note, setNote] = useState('')
   const [notes, setNotes] = useState([])
-  const [timeline, setTimeline] = useState([])
-  const [analysts, setAnalysts] = useState([])
-  const [selectedAssignee, setSelectedAssignee] = useState('')
-  const [aiSummary, setAiSummary] = useState('')
-  const [aiTriage, setAiTriage] = useState(null)
-  const [feedback, setFeedback] = useState('')
-  const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([
-      api.getAlert(alertId),
-      api.getAlertNotes(alertId),
-      api.getAlertTimeline(alertId),
-    ])
-      .then(([alertRow, notesRows, timelineRows]) => {
-        setAlert(alertRow)
-        setNotes(notesRows)
-        setTimeline(timelineRows)
-        setSelectedAssignee(alertRow.assigned_analyst_id ?? '')
-      })
-      .catch((err) => setError(err.message))
-    api.getAnalysts().then(setAnalysts).catch(() => null)
+    api.getAlert(alertId).then(setAlert).catch(() => null)
+    api.getAlertNotes(alertId).then(setNotes).catch(() => null)
   }, [alertId])
 
   async function setStatus(status) {
-    setFeedback('')
-    setError('')
-    try {
-      const updated = await api.patchAlertStatus(alertId, status)
-      setAlert(updated)
-      const timelineRows = await api.getAlertTimeline(alertId)
-      setTimeline(timelineRows)
-      setFeedback(`Alert status updated to ${status}.`)
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  async function assignAnalyst() {
-    setFeedback('')
-    setError('')
-    try {
-      const analystId = selectedAssignee === '' ? null : Number(selectedAssignee)
-      const updated = await api.assignAlert(alertId, analystId)
-      setAlert(updated)
-      const timelineRows = await api.getAlertTimeline(alertId)
-      setTimeline(timelineRows)
-      setFeedback('Assignment updated successfully.')
-    } catch (err) {
-      setError(err.message)
-    }
+    const updated = await api.patchAlertStatus(alertId, status)
+    setAlert(updated)
   }
 
   async function addNote() {
     if (!note.trim()) return
-    setFeedback('')
-    setError('')
-    try {
-      const saved = await api.createAlertNote(alertId, note.trim())
-      setNotes((existing) => [saved, ...existing])
-      setNote('')
-      const timelineRows = await api.getAlertTimeline(alertId)
-      setTimeline(timelineRows)
-      setFeedback('Note added successfully.')
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  async function runAiAssist() {
-    setFeedback('')
-    setError('')
-    try {
-      const [summary, triage] = await Promise.all([
-        api.getAlertAiSummary(alertId),
-        api.getAlertAiTriage(alertId),
-      ])
-      setAiSummary(summary.summary)
-      setAiTriage(triage)
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  async function submitFeedback(isTruePositive) {
-    setFeedback('')
-    setError('')
-    try {
-      await api.submitAlertFeedback(alertId, {
-        is_true_positive: isTruePositive,
-        tuning_notes: isTruePositive
-          ? 'Analyst confirmed malicious behavior.'
-          : 'Analyst identified this as likely benign/noise.',
-      })
-      setFeedback(isTruePositive ? 'Marked as true positive.' : 'Marked as false positive.')
-    } catch (err) {
-      setError(err.message)
-    }
+    const saved = await api.createAlertNote(alertId, note.trim())
+    setNotes((existing) => [saved, ...existing])
+    setNote('')
   }
 
   return (
@@ -133,21 +51,17 @@ export default function AlertDetailPage() {
               <p className="text-slate-400">Confidence</p>
               <p>{Math.round(alert.confidence_score * 100)}%</p>
             </div>
-            <div>
-              <p className="text-slate-400">Assigned Analyst ID</p>
-              <p>{alert.assigned_analyst_id ?? 'Unassigned'}</p>
-            </div>
-            <div>
-              <p className="text-slate-400">Correlation Count</p>
-              <p>{alert.dedup_count ?? 1}</p>
-            </div>
             <div className="sm:col-span-2">
               <p className="text-slate-400">Explanation</p>
               <p>{alert.explanation}</p>
             </div>
-            <div className="sm:col-span-2">
-              <p className="text-slate-400">MITRE ATT&CK Techniques</p>
+            <div>
+              <p className="text-slate-400">MITRE ATT&CK</p>
               <p>{alert.mitre_techniques?.join(', ') || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-slate-400">Correlated Detections</p>
+              <p>{alert.dedup_count ?? 1}</p>
             </div>
           </div>
         ) : (
@@ -168,37 +82,6 @@ export default function AlertDetailPage() {
             </button>
           ))}
         </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <select
-            value={selectedAssignee}
-            onChange={(e) => setSelectedAssignee(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-          >
-            <option value="">Unassigned</option>
-            {analysts.map((analyst) => (
-              <option key={analyst.id} value={analyst.id}>
-                {analyst.full_name} ({analyst.role})
-              </option>
-            ))}
-          </select>
-          <button onClick={assignAnalyst} className="rounded-md bg-blue-500 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-400">
-            Assign Analyst
-          </button>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-        <h3 className="font-semibold">AI Assistant</h3>
-        <button onClick={runAiAssist} className="mt-3 rounded-md bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-white hover:bg-fuchsia-400">
-          Generate AI Summary + Triage
-        </button>
-        {aiSummary ? <p className="mt-3 rounded-md border border-fuchsia-700/40 bg-fuchsia-900/20 p-3 text-sm">{aiSummary}</p> : null}
-        {aiTriage ? (
-          <p className="mt-2 text-sm text-slate-300">
-            <strong>{aiTriage.priority}</strong>: {aiTriage.recommendation}
-          </p>
-        ) : null}
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
@@ -209,24 +92,12 @@ export default function AlertDetailPage() {
           onChange={(e) => setNote(e.target.value)}
           placeholder="Capture analyst findings and next steps..."
         />
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3">
           <button
             onClick={addNote}
             className="rounded-md bg-cyan-500 px-3 py-1.5 text-sm font-medium text-slate-950 hover:bg-cyan-400"
           >
             Save note
-          </button>
-          <button
-            onClick={() => submitFeedback(true)}
-            className="rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-slate-950 hover:bg-emerald-400"
-          >
-            Mark True Positive
-          </button>
-          <button
-            onClick={() => submitFeedback(false)}
-            className="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-slate-950 hover:bg-amber-400"
-          >
-            Mark False Positive
           </button>
         </div>
         <div className="mt-4 space-y-2">
@@ -238,23 +109,6 @@ export default function AlertDetailPage() {
           {notes.length === 0 && <p className="text-sm text-slate-400">No notes yet.</p>}
         </div>
       </section>
-
-      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-        <h3 className="font-semibold">Alert Timeline</h3>
-        <div className="mt-3 space-y-2">
-          {timeline.map((entry) => (
-            <article key={entry.id} className="rounded-md border border-slate-800 bg-slate-950 p-3 text-sm">
-              <p className="font-medium">{entry.action.replace('_', ' ')}</p>
-              <p className="text-slate-300">{entry.details}</p>
-              <p className="text-xs text-slate-500">{new Date(entry.created_at).toLocaleString()}</p>
-            </article>
-          ))}
-          {timeline.length === 0 ? <p className="text-sm text-slate-400">No timeline entries yet.</p> : null}
-        </div>
-      </section>
-
-      {feedback ? <p className="rounded-md border border-emerald-700/40 bg-emerald-900/20 p-3 text-sm text-emerald-200">{feedback}</p> : null}
-      {error ? <p className="rounded-md border border-red-700/40 bg-red-900/20 p-3 text-sm text-red-200">{error}</p> : null}
     </div>
   )
 }

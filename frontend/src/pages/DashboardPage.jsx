@@ -18,7 +18,6 @@ export default function DashboardPage() {
   const [quality, setQuality] = useState(null)
   const [jobMetrics, setJobMetrics] = useState(null)
   const [benchmarks, setBenchmarks] = useState([])
-  const [hotspots, setHotspots] = useState([])
   const [alerts, setAlerts] = useState([])
 
   useEffect(() => {
@@ -27,7 +26,6 @@ export default function DashboardPage() {
     api.getDetectionQuality().then(setQuality).catch(() => null)
     api.getJobMetrics().then(setJobMetrics).catch(() => null)
     api.getScenarioBenchmarks().then(setBenchmarks).catch(() => null)
-    api.getCorrelationHotspots().then(setHotspots).catch(() => null)
     api.getAlerts().then(setAlerts).catch(() => null)
   }, [])
 
@@ -96,32 +94,6 @@ export default function DashboardPage() {
                   <td className="py-2 pr-4">{item.scenario}</td>
                   <td className="py-2 pr-4">{item.coverage_percent}%</td>
                   <td className="py-2 pr-4">{item.observed_detections.join(', ') || 'None'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-        <h2 className="mb-4 text-lg font-semibold">Correlation Hotspots</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="text-slate-400">
-              <tr>
-                <th className="pb-2">Correlation ID</th>
-                <th className="pb-2">Alert Count</th>
-                <th className="pb-2">Max Dedup</th>
-                <th className="pb-2">Avg Confidence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {hotspots.map((item) => (
-                <tr key={item.correlation_id} className="border-t border-slate-800">
-                  <td className="py-2 pr-4">{item.correlation_id}</td>
-                  <td className="py-2 pr-4">{item.alert_count}</td>
-                  <td className="py-2 pr-4">{item.max_dedup_count}</td>
-                  <td className="py-2 pr-4">{Math.round(item.avg_confidence * 100)}%</td>
                 </tr>
               ))}
             </tbody>

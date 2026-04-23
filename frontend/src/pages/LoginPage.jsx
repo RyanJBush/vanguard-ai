@@ -5,7 +5,7 @@ import { api, authStore } from '../services/api'
 
 export default function LoginPage({ onAuthenticated }) {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ username: 'admin', password: 'admin123' })
+  const [form, setForm] = useState({ username: 'analyst', password: 'analyst123' })
   const [error, setError] = useState('')
 
   async function handleSubmit(event) {

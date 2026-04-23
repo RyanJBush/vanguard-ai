@@ -7,8 +7,6 @@ DEFAULT_FEATURE_FLAGS: dict[str, str] = {
     "unusual_login_hour_anomaly": "Enable unusual login hour anomaly detection.",
     "privilege_escalation_indicator": "Enable privilege escalation indicator detection.",
     "high_volume_failed_access_anomaly": "Enable high-volume failed access anomaly detection.",
-    "threat_intel_match_indicator": "Enable threat-intelligence indicator match detections.",
-    "impossible_travel_login_anomaly": "Enable impossible-travel login anomaly detections.",
 }
 
 
