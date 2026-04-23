@@ -213,6 +213,18 @@ class EventIngestResponse(BaseModel):
     job_id: int | None = None
 
 
+class BatchEventIngestRequest(BaseModel):
+    events: list[EventCreate] = Field(min_length=1, max_length=500)
+    defer_detection: bool = False
+
+
+class BatchEventIngestResponse(BaseModel):
+    events_ingested: int
+    detections_generated: int
+    alerts_generated: int
+    job_ids: list[int]
+
+
 class PaginationMeta(BaseModel):
     page: int
     page_size: int
@@ -333,3 +345,10 @@ class ScenarioBenchmarkOut(BaseModel):
     expected_detections: list[str]
     observed_detections: list[str]
     coverage_percent: float
+
+
+class CorrelationHotspotOut(BaseModel):
+    correlation_id: str
+    alert_count: int
+    max_dedup_count: int
+    avg_confidence: float

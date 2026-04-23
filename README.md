@@ -152,6 +152,8 @@ Frontend:
 - [Architecture](docs/ARCHITECTURE.md)
 - [Ports](docs/PORTS.md)
 - [Style Guide](docs/STYLEGUIDE.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
+- [Demo Runbook](docs/DEMO_RUNBOOK.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## License
