@@ -34,27 +34,15 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   me: () => request('/api/auth/me'),
-  getAnalysts: () => request('/api/auth/analysts'),
   getSummary: () => request('/api/metrics/summary'),
   getKpis: () => request('/api/metrics/kpis'),
   getDetectionQuality: () => request('/api/metrics/detection-quality'),
   getJobMetrics: () => request('/api/metrics/jobs'),
   getScenarioBenchmarks: () => request('/api/metrics/scenario-benchmarks'),
-  getCorrelationHotspots: () => request('/api/metrics/correlation-hotspots'),
   getEvents: async () => {
     const response = await request('/api/events')
     return response.items ?? []
   },
-  createEventsBatch: (payload) =>
-    request('/api/events/batch', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  getEventScenarios: () => request('/api/events/scenarios'),
-  seedScenario: (scenarioKey) =>
-    request(`/api/events/scenarios/${scenarioKey}/seed`, {
-      method: 'POST',
-    }),
   createEvent: (payload) =>
     request('/api/events', {
       method: 'POST',
@@ -66,9 +54,6 @@ export const api = {
   },
   getAlert: (id) => request(`/api/alerts/${id}`),
   getAlertNotes: (id) => request(`/api/alerts/${id}/notes`),
-  getAlertTimeline: (id) => request(`/api/alerts/${id}/timeline`),
-  getAlertAiSummary: (id) => request(`/api/alerts/${id}/ai-summary`),
-  getAlertAiTriage: (id) => request(`/api/alerts/${id}/ai-triage`),
   createAlertNote: (id, note) =>
     request(`/api/alerts/${id}/notes`, {
       method: 'POST',
@@ -79,37 +64,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
-  assignAlert: (id, analystId) =>
-    request(`/api/alerts/${id}/assign`, {
-      method: 'PATCH',
-      body: JSON.stringify({ analyst_id: analystId }),
-    }),
-  submitAlertFeedback: (id, payload) =>
-    request(`/api/alerts/${id}/feedback`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
   getDetections: () => request('/api/detections'),
-  getIncidents: async () => {
-    const response = await request('/api/incidents')
-    return response.items ?? []
-  },
-  createIncident: (payload) =>
-    request('/api/incidents', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  patchIncidentStatus: (id, status) =>
-    request(`/api/incidents/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    }),
-  getIncidentAiWrapup: (id) => request(`/api/incidents/${id}/ai-wrapup`),
-  getJobs: () => request('/api/jobs'),
-  processPendingJobs: () =>
-    request('/api/jobs/process-pending', {
-      method: 'POST',
-    }),
 }
 
 export const authStore = {
