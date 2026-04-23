@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Vanguard AI"
     environment: str = "development"
-    database_url: str = "postgresql+psycopg2://postgres:postgres@db:5432/vanguard_ai"
+    database_url: str = "sqlite:///./vanguard_ai.db"
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_exp_minutes: int = 60
