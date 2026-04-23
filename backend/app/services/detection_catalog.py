@@ -59,6 +59,28 @@ DETECTION_CATALOG: dict[str, DetectionDefinition] = {
         description="Anomaly on concentrated login and access failures over a short rolling window.",
         dedup_window_minutes=30,
     ),
+    "threat_intel_match_indicator": DetectionDefinition(
+        key="threat_intel_match_indicator",
+        title="Threat Intel Match",
+        severity="critical",
+        default_confidence=0.95,
+        mitre_techniques=("T1583", "T1071"),
+        mitre_tactics=("Resource Development", "Command and Control"),
+        recommendation="Immediately validate IOC context, isolate affected assets, and block communication paths.",
+        description="Triggers when telemetry fields indicate a known IOC or threat-intel hit.",
+        dedup_window_minutes=180,
+    ),
+    "impossible_travel_login_anomaly": DetectionDefinition(
+        key="impossible_travel_login_anomaly",
+        title="Impossible Travel Login",
+        severity="high",
+        default_confidence=0.84,
+        mitre_techniques=("T1078",),
+        mitre_tactics=("Initial Access", "Defense Evasion"),
+        recommendation="Validate identity legitimacy, enforce MFA reset, and review session tokens.",
+        description="Detects successful login activity from different geolocations within an implausible interval.",
+        dedup_window_minutes=90,
+    ),
 }
 
 
