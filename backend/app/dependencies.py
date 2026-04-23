@@ -12,11 +12,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     payload = decode_access_token(token)
     username = payload.get("sub")
+    token_role = payload.get("role")
     if not username:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if token_role and token_role != user.role.value:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Stale token role")
     return user
 
 

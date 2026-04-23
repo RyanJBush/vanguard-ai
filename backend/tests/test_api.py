@@ -12,6 +12,7 @@ from app.db import Base, get_db
 from app.main import app
 from app.models import Organization, Role, User
 from app.security import hash_password
+from app.security import create_access_token
 
 TEST_DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -72,6 +73,13 @@ def test_health(client: TestClient):
     deps = client.get("/health/dependencies")
     assert deps.status_code == 200
     assert "database" in deps.json()["dependencies"]
+
+
+def test_stale_token_role_rejected(client: TestClient):
+    bad_token = create_access_token("admin", "Viewer")
+    response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {bad_token}"})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Stale token role"
 
 
 def test_brute_force_alert_generation(client: TestClient):

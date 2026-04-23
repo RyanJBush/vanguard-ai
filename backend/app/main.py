@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -18,7 +21,19 @@ from app.routers.metrics import router as metrics_router
 from app.routers.platform import router as platform_router
 from app.services.seed import seed_demo_data
 
-app = FastAPI(title="Vanguard AI API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_demo_data(db)
+    finally:
+        db.close()
+    yield
+
+
+app = FastAPI(title="Vanguard AI API", version="0.1.0", lifespan=lifespan)
 configure_logging()
 attach_request_context_filter()
 app.add_middleware(
@@ -39,13 +54,3 @@ app.include_router(incidents_router)
 app.include_router(jobs_router)
 app.include_router(platform_router)
 app.include_router(metrics_router)
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        seed_demo_data(db)
-    finally:
-        db.close()
