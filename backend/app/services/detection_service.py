@@ -88,6 +88,28 @@ def _failed_access_recent(db: Session, event: Event, minutes: int = 10) -> int:
     )
 
 
+def _recent_login_geolocations(db: Session, event: Event, minutes: int = 60) -> set[str]:
+    if not event.username:
+        return set()
+    cutoff = event.occurred_at - timedelta(minutes=minutes)
+    rows = (
+        db.query(Event.event_metadata)
+        .filter(
+            Event.organization_id == event.organization_id,
+            Event.username == event.username,
+            Event.event_type == "login_success",
+            Event.occurred_at >= cutoff,
+            Event.id != event.id,
+        )
+        .all()
+    )
+    return {
+        metadata.get("geolocation")
+        for (metadata,) in rows
+        if isinstance(metadata, dict) and metadata.get("geolocation")
+    }
+
+
 def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
     signals: list[DetectionSignal] = []
 
@@ -187,6 +209,46 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                         correlation_entity=event.source_ip or event.username or "org_scope",
                     ),
                 )
+
+    if event.event_metadata.get("threat_intel_match") is True:
+        definition = DETECTION_CATALOG["threat_intel_match_indicator"]
+        if is_detection_enabled(
+            db,
+            organization_id=event.organization_id,
+            detection_key=definition.key,
+        ):
+            ioc = event.event_metadata.get("ioc") or event.source_ip or "unknown_indicator"
+            signals.append(
+                _signal_from_catalog(
+                    definition=definition,
+                    confidence=0.95,
+                    explanation=f"Threat-intel matched IOC observed in event context: {ioc}.",
+                    correlation_entity=str(ioc),
+                ),
+            )
+
+    if event.event_type == "login_success" and event.username:
+        current_geo = event.event_metadata.get("geolocation")
+        if current_geo:
+            prior_geos = _recent_login_geolocations(db, event, minutes=45)
+            if prior_geos and current_geo not in prior_geos:
+                definition = DETECTION_CATALOG["impossible_travel_login_anomaly"]
+                if is_detection_enabled(
+                    db,
+                    organization_id=event.organization_id,
+                    detection_key=definition.key,
+                ):
+                    signals.append(
+                        _signal_from_catalog(
+                            definition=definition,
+                            confidence=0.84,
+                            explanation=(
+                                f"User {event.username} logged in from {current_geo} after recent login(s) "
+                                f"from {', '.join(sorted(prior_geos))} within 45 minutes."
+                            ),
+                            correlation_entity=event.username,
+                        ),
+                    )
 
     return signals
 
