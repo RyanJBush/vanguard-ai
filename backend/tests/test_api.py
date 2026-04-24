@@ -319,6 +319,147 @@ def test_paginated_list_responses(client: TestClient):
     assert "pagination" in incidents.json()
 
 
+def test_auth_invalid_credentials_returns_401(client: TestClient):
+    response = client.post("/api/auth/login", json={"username": "admin", "password": "wrong-password"})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid credentials"
+
+
+def test_platform_feature_flags_patch_and_audit_log(client: TestClient):
+    headers = auth_headers(client)
+
+    list_response = client.get("/api/platform/feature-flags", headers=headers)
+    assert list_response.status_code == 200
+    flags = list_response.json()
+    assert any(flag["key"] == "brute_force_login_rule" for flag in flags)
+
+    patch_response = client.patch(
+        "/api/platform/feature-flags/brute_force_login_rule",
+        json={"enabled": False},
+        headers=headers,
+    )
+    assert patch_response.status_code == 200
+    assert patch_response.json()["enabled"] is False
+
+    missing_patch = client.patch(
+        "/api/platform/feature-flags/does_not_exist",
+        json={"enabled": True},
+        headers=headers,
+    )
+    assert missing_patch.status_code == 404
+
+    audit_logs = client.get("/api/platform/audit-logs?limit=0", headers=headers)
+    assert audit_logs.status_code == 200
+    assert any(log["action"] == "feature_flag_updated" for log in audit_logs.json())
+
+
+def test_alert_assignment_validates_assignee_role(client: TestClient):
+    headers = auth_headers(client)
+
+    create_viewer = client.post(
+        "/api/events",
+        json={
+            "source": "identity_provider",
+            "source_ip": "198.51.100.80",
+            "username": "target-user",
+            "event_type": "login_failed",
+            "message": "Failed login",
+        },
+        headers=headers,
+    )
+    assert create_viewer.status_code == 200
+    for _ in range(4):
+        client.post(
+            "/api/events",
+            json={
+                "source": "identity_provider",
+                "source_ip": "198.51.100.80",
+                "username": "target-user",
+                "event_type": "login_failed",
+                "message": "Failed login",
+            },
+            headers=headers,
+        )
+
+    alert_id = client.get("/api/alerts", headers=headers).json()["items"][0]["id"]
+    analysts = client.get("/api/auth/analysts", headers=headers)
+    assert analysts.status_code == 200
+    assert all(user["role"] in ["Admin", "Analyst"] for user in analysts.json())
+
+    assign_bad = client.patch(
+        f"/api/alerts/{alert_id}/assign",
+        json={"analyst_id": 999999},
+        headers=headers,
+    )
+    assert assign_bad.status_code == 400
+    assert "Assigned analyst" in assign_bad.json()["detail"]
+
+    unassign = client.patch(
+        f"/api/alerts/{alert_id}/assign",
+        json={"analyst_id": None},
+        headers=headers,
+    )
+    assert unassign.status_code == 200
+    assert unassign.json()["assigned_analyst_id"] is None
+
+
+def test_incident_lifecycle_and_not_found_paths(client: TestClient):
+    headers = auth_headers(client)
+    for _ in range(5):
+        client.post(
+            "/api/events",
+            json={
+                "source": "identity_provider",
+                "source_ip": "203.0.113.90",
+                "username": "incident-user",
+                "event_type": "login_failed",
+                "message": "Failed login",
+            },
+            headers=headers,
+        )
+
+    alerts = client.get("/api/alerts", headers=headers).json()["items"]
+    alert_id = alerts[0]["id"]
+
+    invalid_incident = client.post(
+        "/api/incidents",
+        json={"title": "Invalid incident", "summary": "bad", "alert_ids": [999999]},
+        headers=headers,
+    )
+    assert invalid_incident.status_code == 400
+
+    created_incident = client.post(
+        "/api/incidents",
+        json={"title": "Credential Abuse", "summary": "Escalated auth anomalies", "alert_ids": [alert_id]},
+        headers=headers,
+    )
+    assert created_incident.status_code == 200
+    incident_id = created_incident.json()["id"]
+
+    wrapped = client.get(f"/api/incidents/{incident_id}/ai-wrapup", headers=headers)
+    assert wrapped.status_code == 200
+    assert "Credential Abuse" in wrapped.json()["summary"]
+
+    closed = client.patch(
+        f"/api/incidents/{incident_id}/status",
+        json={"status": "closed"},
+        headers=headers,
+    )
+    assert closed.status_code == 200
+    assert closed.json()["closed_at"] is not None
+
+    reopened = client.patch(
+        f"/api/incidents/{incident_id}/status",
+        json={"status": "investigating"},
+        headers=headers,
+    )
+    assert reopened.status_code == 200
+    assert reopened.json()["closed_at"] is None
+
+    not_found = client.get("/api/incidents/999999", headers=headers)
+    assert not_found.status_code == 404
+
+
 def test_alert_assignment_and_timeline(client: TestClient):
     headers = auth_headers(client)
     payload = {
