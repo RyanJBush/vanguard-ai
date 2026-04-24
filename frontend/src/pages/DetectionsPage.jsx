@@ -8,21 +8,31 @@ export default function DetectionsPage() {
   const [error, setError] = useState('')
 
   async function refresh() {
+    setError('')
+
     try {
-      const [detectionRows, jobRows] = await Promise.all([api.getDetections(), api.getJobs()])
-      setDetections(detectionRows)
-      setJobs(jobRows)
-      setError('')
+      const [detectionResult, jobResult] = await Promise.allSettled([api.getDetections(), api.getJobs()])
+
+      if (detectionResult.status === 'rejected') {
+        throw detectionResult.reason
+      }
+
+      setDetections(detectionResult.value)
+      setJobs(jobResult.status === 'fulfilled' ? jobResult.value : [])
     } catch (err) {
       setError(err.message)
     }
   }
 
   useEffect(() => {
-    Promise.all([api.getDetections(), api.getJobs()])
-      .then(([detectionRows, jobRows]) => {
-        setDetections(detectionRows)
-        setJobs(jobRows)
+    Promise.allSettled([api.getDetections(), api.getJobs()])
+      .then(([detectionResult, jobResult]) => {
+        if (detectionResult.status === 'rejected') {
+          throw detectionResult.reason
+        }
+
+        setDetections(detectionResult.value)
+        setJobs(jobResult.status === 'fulfilled' ? jobResult.value : [])
       })
       .catch((err) => setError(err.message))
   }, [])
