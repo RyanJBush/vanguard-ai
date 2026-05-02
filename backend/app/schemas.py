@@ -67,6 +67,7 @@ class DetectionOut(BaseModel):
     severity: str
     confidence_score: float
     explanation: str
+    evidence: list[dict]
     mitre_techniques: list[str]
     recommended_next_steps: str
     created_at: datetime
@@ -84,6 +85,7 @@ class AlertOut(BaseModel):
     status: AlertStatus
     confidence_score: float
     explanation: str
+    evidence: list[dict]
     mitre_techniques: list[str]
     correlation_id: str
     incident_id: int | None
