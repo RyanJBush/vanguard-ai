@@ -1,5 +1,5 @@
 import os
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -161,7 +161,7 @@ def test_events_filter_and_missing_resources(client: TestClient):
         "event_type": "login_failed",
         "severity": "high",
         "message": "Failed login",
-        "occurred_at": datetime(2026, 4, 18, 12, 0, tzinfo=UTC).isoformat(),
+        "occurred_at": datetime(2026, 4, 18, 12, 0, tzinfo=timezone.utc).isoformat(),
     }
     second = {
         "source": "identity_provider",
@@ -170,7 +170,7 @@ def test_events_filter_and_missing_resources(client: TestClient):
         "event_type": "access_denied",
         "severity": "low",
         "message": "Access denied",
-        "occurred_at": datetime(2026, 4, 18, 12, 5, tzinfo=UTC).isoformat(),
+        "occurred_at": datetime(2026, 4, 18, 12, 5, tzinfo=timezone.utc).isoformat(),
     }
 
     assert (
