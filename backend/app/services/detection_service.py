@@ -105,6 +105,7 @@ def _recent_login_success_events(db: Session, event: Event, minutes: int = 60) -
     if not event.username:
         return []
     lower_bound = event.occurred_at - timedelta(minutes=minutes)
+    cutoff = event.occurred_at - timedelta(minutes=minutes)
     return (
         db.query(Event)
         .filter(
@@ -252,6 +253,8 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
         if current_geo:
             prior_login_events = _recent_login_success_events(db, event, minutes=1440)
             prior_geos = _recent_login_geolocations(db, event, minutes=1440)
+            prior_login_events = _recent_login_success_events(db, event, minutes=45)
+            prior_geos = _recent_login_geolocations(db, event, minutes=45)
             if prior_geos and current_geo not in prior_geos:
                 definition = DETECTION_CATALOG["impossible_travel_login_anomaly"]
                 if is_detection_enabled(
@@ -294,6 +297,44 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                         explanation=(
                             f"{len(api_events)} API requests from {event.source_ip} in five minutes, "
                             "exceeding normal burst thresholds."
+                        ),
+                        correlation_entity=event.source_ip,
+                        evidence=_event_evidence(api_events),
+                    )
+                )
+
+    if event.source_ip:
+        suspicious_window = event.occurred_at - timedelta(minutes=30)
+        ip_events = (
+            db.query(Event)
+            .filter(
+                Event.organization_id == event.organization_id,
+                Event.source_ip == event.source_ip,
+                Event.occurred_at >= suspicious_window,
+            )
+            .all()
+        )
+        targeted_users = {candidate.username for candidate in ip_events if candidate.username}
+        failed_attempts = sum(
+            1 for candidate in ip_events if candidate.event_type in {"login_failed", "access_denied"}
+        )
+        success_logins = sum(1 for candidate in ip_events if candidate.event_type == "login_success")
+        if len(targeted_users) >= 3 and failed_attempts >= 6 and success_logins >= 1:
+            definition = DETECTION_CATALOG["suspicious_ip_behavior_rule"]
+            if is_detection_enabled(db, organization_id=event.organization_id, detection_key=definition.key):
+                signals.append(
+                    _signal_from_catalog(
+                        definition=definition,
+                        confidence=min(0.99, 0.82 + (len(targeted_users) / 50)),
+                        explanation=(
+                            f"IP {event.source_ip} targeted {len(targeted_users)} users with "
+                            f"{failed_attempts} failed attempts and {success_logins} successful login(s) "
+                            "in 30 minutes."
+                        ),
+                        correlation_entity=event.source_ip,
+                        evidence=_event_evidence(ip_events),
+                    )
+                )
                         ),
                         correlation_entity=event.source_ip,
                         evidence=_event_evidence(api_events),
