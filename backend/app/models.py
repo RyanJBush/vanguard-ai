@@ -15,9 +15,12 @@ class Role(str, enum.Enum):
 
 
 class AlertStatus(str, enum.Enum):
+    new = "new"
     open = "open"
     triaged = "triaged"
     investigating = "investigating"
+    resolved = "resolved"
+    false_positive = "false_positive"
     escalated = "escalated"
     closed = "closed"
 

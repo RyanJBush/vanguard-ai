@@ -158,6 +158,20 @@ class IncidentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class IncidentAlertLinkRequest(BaseModel):
+    alert_ids: list[int] = Field(min_length=1, max_length=500)
+
+
+class IncidentTimelineEntryOut(BaseModel):
+    id: int
+    actor_id: int | None
+    action: str
+    details: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class MetricsSummary(BaseModel):
     total_events: int
     total_alerts: int

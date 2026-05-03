@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 import StatusBadge from '../components/StatusBadge'
 import { api } from '../services/api'
 
-const STATUSES = ['open', 'triaged', 'investigating', 'escalated', 'closed']
+const STATUSES = ['new', 'investigating', 'resolved', 'false_positive', 'closed']
 
 export default function AlertDetailPage() {
   const { alertId } = useParams()

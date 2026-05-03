@@ -60,6 +60,8 @@ Additional architecture notes are in [/docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 - `POST /api/incidents`
 - `GET /api/incidents/{id}`
 - `PATCH /api/incidents/{id}/status`
+- `POST /api/incidents/{id}/alerts`
+- `GET /api/incidents/{id}/timeline`
 - `GET /api/incidents/{id}/ai-wrapup`
 - `GET /api/jobs`
 - `POST /api/jobs/process-pending`

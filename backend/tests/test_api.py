@@ -753,3 +753,62 @@ def test_event_replay_creates_new_events(client: TestClient):
     body = replay.json()
     assert body["replayed_events"] >= 1
     assert len(body["job_ids"]) == body["replayed_events"]
+
+
+def test_alert_lifecycle_supports_false_positive_status(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "source": "identity_provider",
+        "source_ip": "198.51.100.55",
+        "username": "jdoe",
+        "event_type": "login_failed",
+        "message": "Failed login",
+    }
+    for _ in range(5):
+        response = client.post("/api/events", json=payload, headers=headers)
+        assert response.status_code == 200
+
+    alert_id = client.get("/api/alerts", headers=headers).json()["items"][0]["id"]
+    update = client.patch(
+        f"/api/alerts/{alert_id}/status",
+        json={"status": "false_positive"},
+        headers=headers,
+    )
+    assert update.status_code == 200
+    assert update.json()["status"] == "false_positive"
+    assert update.json()["closed_at"] is not None
+
+
+def test_incident_grouping_and_timeline(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "source": "identity_provider",
+        "source_ip": "203.0.113.45",
+        "username": "jdoe",
+        "event_type": "login_failed",
+        "message": "Failed login",
+    }
+    for _ in range(6):
+        response = client.post("/api/events", json=payload, headers=headers)
+        assert response.status_code == 200
+
+    alerts = client.get("/api/alerts", headers=headers).json()["items"]
+    assert alerts
+    incident = client.post(
+        "/api/incidents",
+        json={"title": "Credential attack", "summary": "Group related alerts", "alert_ids": [alerts[0]["id"]]},
+        headers=headers,
+    )
+    assert incident.status_code == 200
+    incident_id = incident.json()["id"]
+
+    linked = client.post(
+        f"/api/incidents/{incident_id}/alerts",
+        json={"alert_ids": [alerts[0]["id"]]},
+        headers=headers,
+    )
+    assert linked.status_code == 200
+
+    timeline = client.get(f"/api/incidents/{incident_id}/timeline", headers=headers)
+    assert timeline.status_code == 200
+    assert any(row["action"] in {"incident_created", "incident_alerts_linked"} for row in timeline.json())
