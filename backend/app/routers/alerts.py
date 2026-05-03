@@ -97,7 +97,7 @@ def patch_alert_status(
     alert = _get_alert_or_404(db, alert_id, current_user.organization_id)
     previous_status = alert.status
     alert.status = payload.status
-    if payload.status == AlertStatus.closed:
+    if payload.status in {AlertStatus.closed, AlertStatus.resolved, AlertStatus.false_positive}:
         alert.closed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     else:
         alert.closed_at = None
