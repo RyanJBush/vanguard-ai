@@ -252,6 +252,8 @@ def list_events(
     page: int = 1,
     page_size: int = 50,
     event_type: str | None = None,
+    username: str | None = None,
+    source_ip: str | None = None,
     severity: str | None = None,
     sort_by: str = "occurred_at",
     sort_order: str = "desc",
@@ -261,6 +263,10 @@ def list_events(
     query = db.query(Event).filter(Event.organization_id == current_user.organization_id)
     if event_type:
         query = query.filter(Event.event_type == event_type)
+    if username:
+        query = query.filter(Event.username == username)
+    if source_ip:
+        query = query.filter(Event.source_ip == source_ip)
     if severity:
         query = query.filter(Event.severity == severity)
 

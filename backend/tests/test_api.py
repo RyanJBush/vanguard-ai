@@ -812,3 +812,29 @@ def test_incident_grouping_and_timeline(client: TestClient):
     timeline = client.get(f"/api/incidents/{incident_id}/timeline", headers=headers)
     assert timeline.status_code == 200
     assert any(row["action"] in {"incident_created", "incident_alerts_linked"} for row in timeline.json())
+
+
+def test_alert_and_event_filtering_for_investigation_views(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "source": "auth",
+        "source_ip": "203.0.113.66",
+        "username": "investigator",
+        "event_type": "login_failed",
+        "message": "Failed login",
+    }
+    for _ in range(6):
+        response = client.post("/api/events", json=payload, headers=headers)
+        assert response.status_code == 200
+
+    alerts = client.get("/api/alerts", headers=headers).json()["items"]
+    assert alerts
+    correlation_id = alerts[0]["correlation_id"]
+
+    related = client.get(f"/api/alerts?correlation_id={correlation_id}", headers=headers)
+    assert related.status_code == 200
+    assert len(related.json()["items"]) >= 1
+
+    events = client.get("/api/events?username=investigator&source_ip=203.0.113.66", headers=headers)
+    assert events.status_code == 200
+    assert len(events.json()["items"]) >= 1

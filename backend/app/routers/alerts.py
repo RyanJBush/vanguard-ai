@@ -56,6 +56,7 @@ def _append_timeline(
 def list_alerts(
     status: AlertStatus | None = None,
     severity: str | None = None,
+    correlation_id: str | None = None,
     page: int = 1,
     page_size: int = 50,
     sort_by: str = "created_at",
@@ -68,6 +69,8 @@ def list_alerts(
         query = query.filter(Alert.status == status)
     if severity:
         query = query.filter(Alert.severity == severity)
+    if correlation_id:
+        query = query.filter(Alert.correlation_id == correlation_id)
 
     sort_column = Alert.last_seen_at if sort_by == "last_seen_at" else Alert.created_at
     query = query.order_by(sort_column.asc() if sort_order == "asc" else sort_column.desc())
