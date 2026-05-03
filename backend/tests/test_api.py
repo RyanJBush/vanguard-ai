@@ -739,6 +739,8 @@ def test_event_replay_creates_new_events(client: TestClient):
 
     from_ts = "2026-05-01T00:00:00"
     to_ts = "2026-05-04T00:00:00"
+    from_ts = "2020-01-01T00:00:00"
+    to_ts = "2030-01-01T00:00:00"
     replay = client.post(
         "/api/events/replay",
         json={

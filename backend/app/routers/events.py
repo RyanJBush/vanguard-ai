@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from time import sleep
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -229,6 +230,7 @@ def replay_events(
             message=f"[replay x{payload.speed_multiplier}] {src.message}",
             event_metadata=dict(src.event_metadata or {}),
             occurred_at=(payload.from_timestamp + timedelta(seconds=replay_seconds)),
+            occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(clone)
         db.flush()
