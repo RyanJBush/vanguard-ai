@@ -302,6 +302,11 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                         evidence=_event_evidence(api_events),
                     )
                 )
+                        ),
+                        correlation_entity=event.source_ip,
+                        evidence=_event_evidence(api_events),
+                    )
+                )
 
     if event.source_ip:
         suspicious_window = event.occurred_at - timedelta(minutes=30)
