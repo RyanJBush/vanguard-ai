@@ -191,6 +191,28 @@ def test_build_scenario_events_rejects_unknown_scenario():
         )
 
 
+def test_build_scenario_events_supports_phase6_scenarios():
+    now = datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc)
+    brute = build_scenario_events(
+        scenario_key="brute_force_login_attack",
+        organization_id=1,
+        now=now,
+    )
+    suspicious = build_scenario_events(
+        scenario_key="suspicious_ip_access",
+        organization_id=1,
+        now=now,
+    )
+    api_spike = build_scenario_events(
+        scenario_key="api_abuse_spike",
+        organization_id=1,
+        now=now,
+    )
+    assert len(brute) >= 5
+    assert any(event.event_type == "login_success" for event in suspicious)
+    assert len(api_spike) >= 25
+
+
 def test_get_db_generator_closes_session(monkeypatch):
     from app import db as db_module
 

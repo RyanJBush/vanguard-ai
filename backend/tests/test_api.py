@@ -688,3 +688,163 @@ def test_correlation_hotspots_metric(client: TestClient):
     rows = metrics.json()
     assert len(rows) >= 1
     assert rows[0]["max_dedup_count"] >= 1
+
+
+def test_stream_event_ingestion_and_normalized_schema(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "inter_event_delay_ms": 0,
+        "events": [
+            {
+                "source": "auth",
+                "source_ip": "203.0.113.20",
+                "username": "jdoe",
+                "event_type": "login_failed",
+                "status": "failed",
+                "message": "Invalid password",
+            },
+            {
+                "source": "api",
+                "source_ip": "203.0.113.20",
+                "username": "service-account",
+                "event_type": "api_request",
+                "status": "ok",
+                "message": "GET /v1/export",
+                "metadata": {"log_type": "api_logs"},
+            },
+        ],
+    }
+    response = client.post("/api/events/stream", json=payload, headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["events_ingested"] == 2
+    assert len(body["job_ids"]) == 2
+
+    events = client.get("/api/events?page=1&page_size=10", headers=headers).json()["items"]
+    assert any(item["metadata"].get("timestamp") for item in events)
+    assert any(item["metadata"].get("action") == "api_request" for item in events)
+
+
+def test_event_replay_creates_new_events(client: TestClient):
+    headers = auth_headers(client)
+    base_payload = {
+        "source": "system",
+        "source_ip": "198.51.100.88",
+        "username": "svc-system",
+        "event_type": "process_start",
+        "message": "Process spawned",
+    }
+    first = client.post("/api/events", json=base_payload, headers=headers)
+    assert first.status_code == 200
+
+    from_ts = "2020-01-01T00:00:00"
+    to_ts = "2030-01-01T00:00:00"
+    replay = client.post(
+        "/api/events/replay",
+        json={
+            "from_timestamp": from_ts,
+            "to_timestamp": to_ts,
+            "speed_multiplier": 2.0,
+            "defer_detection": True,
+        },
+        headers=headers,
+    )
+    assert replay.status_code == 200
+    body = replay.json()
+    assert body["replayed_events"] >= 1
+    assert len(body["job_ids"]) == body["replayed_events"]
+
+
+def test_alert_lifecycle_supports_false_positive_status(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "source": "identity_provider",
+        "source_ip": "198.51.100.55",
+        "username": "jdoe",
+        "event_type": "login_failed",
+        "message": "Failed login",
+    }
+    for _ in range(5):
+        response = client.post("/api/events", json=payload, headers=headers)
+        assert response.status_code == 200
+
+    alert_id = client.get("/api/alerts", headers=headers).json()["items"][0]["id"]
+    update = client.patch(
+        f"/api/alerts/{alert_id}/status",
+        json={"status": "false_positive"},
+        headers=headers,
+    )
+    assert update.status_code == 200
+    assert update.json()["status"] == "false_positive"
+    assert update.json()["closed_at"] is not None
+
+
+def test_incident_grouping_and_timeline(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "source": "identity_provider",
+        "source_ip": "203.0.113.45",
+        "username": "jdoe",
+        "event_type": "login_failed",
+        "message": "Failed login",
+    }
+    for _ in range(6):
+        response = client.post("/api/events", json=payload, headers=headers)
+        assert response.status_code == 200
+
+    alerts = client.get("/api/alerts", headers=headers).json()["items"]
+    assert alerts
+    incident = client.post(
+        "/api/incidents",
+        json={"title": "Credential attack", "summary": "Group related alerts", "alert_ids": [alerts[0]["id"]]},
+        headers=headers,
+    )
+    assert incident.status_code == 200
+    incident_id = incident.json()["id"]
+
+    linked = client.post(
+        f"/api/incidents/{incident_id}/alerts",
+        json={"alert_ids": [alerts[0]["id"]]},
+        headers=headers,
+    )
+    assert linked.status_code == 200
+
+    timeline = client.get(f"/api/incidents/{incident_id}/timeline", headers=headers)
+    assert timeline.status_code == 200
+    assert any(row["action"] in {"incident_created", "incident_alerts_linked"} for row in timeline.json())
+
+
+def test_alert_and_event_filtering_for_investigation_views(client: TestClient):
+    headers = auth_headers(client)
+    payload = {
+        "source": "auth",
+        "source_ip": "203.0.113.66",
+        "username": "investigator",
+        "event_type": "login_failed",
+        "message": "Failed login",
+    }
+    for _ in range(6):
+        response = client.post("/api/events", json=payload, headers=headers)
+        assert response.status_code == 200
+
+    alerts = client.get("/api/alerts", headers=headers).json()["items"]
+    assert alerts
+    correlation_id = alerts[0]["correlation_id"]
+
+    related = client.get(f"/api/alerts?correlation_id={correlation_id}", headers=headers)
+    assert related.status_code == 200
+    assert len(related.json()["items"]) >= 1
+
+    events = client.get("/api/events?username=investigator&source_ip=203.0.113.66", headers=headers)
+    assert events.status_code == 200
+    assert len(events.json()["items"]) >= 1
+
+
+def test_run_simulation_endpoint(client: TestClient):
+    headers = auth_headers(client)
+    response = client.post("/api/events/simulations/run", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["simulation"] == "soc_attack_chain"
+    assert body["events_ingested"] >= 30
+    assert body["alerts_generated"] >= 1

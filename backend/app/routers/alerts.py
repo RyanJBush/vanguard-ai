@@ -56,6 +56,7 @@ def _append_timeline(
 def list_alerts(
     status: AlertStatus | None = None,
     severity: str | None = None,
+    correlation_id: str | None = None,
     page: int = 1,
     page_size: int = 50,
     sort_by: str = "created_at",
@@ -68,6 +69,8 @@ def list_alerts(
         query = query.filter(Alert.status == status)
     if severity:
         query = query.filter(Alert.severity == severity)
+    if correlation_id:
+        query = query.filter(Alert.correlation_id == correlation_id)
 
     sort_column = Alert.last_seen_at if sort_by == "last_seen_at" else Alert.created_at
     query = query.order_by(sort_column.asc() if sort_order == "asc" else sort_column.desc())
@@ -97,7 +100,7 @@ def patch_alert_status(
     alert = _get_alert_or_404(db, alert_id, current_user.organization_id)
     previous_status = alert.status
     alert.status = payload.status
-    if payload.status == AlertStatus.closed:
+    if payload.status in {AlertStatus.closed, AlertStatus.resolved, AlertStatus.false_positive}:
         alert.closed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     else:
         alert.closed_at = None

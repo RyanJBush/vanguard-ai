@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 import StatusBadge from '../components/StatusBadge'
 import { api } from '../services/api'
 
-const STATUSES = ['open', 'triaged', 'investigating', 'escalated', 'closed']
+const STATUSES = ['new', 'investigating', 'resolved', 'false_positive', 'closed']
 
 export default function AlertDetailPage() {
   const { alertId } = useParams()
@@ -12,6 +12,10 @@ export default function AlertDetailPage() {
   const [note, setNote] = useState('')
   const [notes, setNotes] = useState([])
   const [timeline, setTimeline] = useState([])
+  const [event, setEvent] = useState(null)
+  const [relatedAlerts, setRelatedAlerts] = useState([])
+  const [ipHistory, setIpHistory] = useState([])
+  const [userHistory, setUserHistory] = useState([])
   const [analysts, setAnalysts] = useState([])
   const [selectedAssignee, setSelectedAssignee] = useState('')
   const [aiSummary, setAiSummary] = useState('')
@@ -30,6 +34,19 @@ export default function AlertDetailPage() {
         setNotes(notesRows)
         setTimeline(timelineRows)
         setSelectedAssignee(alertRow.assigned_analyst_id ?? '')
+        return alertRow
+      })
+      .then(async (alertRow) => {
+        const [eventRow, related, ipEvents, userEvents] = await Promise.all([
+          api.getEvent(alertRow.event_id),
+          api.getRelatedAlerts(alertRow.correlation_id),
+          alertRow?.event_id ? api.getEventsFiltered({ source_ip: alertRow?.evidence?.[0]?.source_ip, page_size: 10 }) : Promise.resolve([]),
+          alertRow?.event_id ? api.getEventsFiltered({ username: alertRow?.evidence?.[0]?.username, page_size: 10 }) : Promise.resolve([]),
+        ])
+        setEvent(eventRow)
+        setRelatedAlerts(related.filter((item) => item.id !== Number(alertId)))
+        setIpHistory(ipEvents)
+        setUserHistory(userEvents)
       })
       .catch((err) => setError(err.message))
     api.getAnalysts().then(setAnalysts).catch(() => null)
@@ -149,10 +166,64 @@ export default function AlertDetailPage() {
               <p className="text-slate-400">MITRE ATT&CK Techniques</p>
               <p>{alert.mitre_techniques?.join(', ') || 'N/A'}</p>
             </div>
+            <div className="sm:col-span-2">
+              <p className="text-slate-400">Detection Explanation</p>
+              <p>{alert.explanation}</p>
+            </div>
           </div>
         ) : (
           <p className="mt-4 text-slate-400">Loading alert...</p>
         )}
+      </section>
+
+      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+        <h3 className="font-semibold">Event Breakdown</h3>
+        {event ? (
+          <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+            <p><span className="text-slate-400">Source:</span> {event.source}</p>
+            <p><span className="text-slate-400">Event Type:</span> {event.event_type}</p>
+            <p><span className="text-slate-400">IP:</span> {event.source_ip ?? 'N/A'}</p>
+            <p><span className="text-slate-400">User:</span> {event.username ?? 'N/A'}</p>
+            <p className="sm:col-span-2"><span className="text-slate-400">Message:</span> {event.message}</p>
+          </div>
+        ) : <p className="mt-3 text-sm text-slate-400">Event data unavailable.</p>}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold">IP History</h3>
+          <ul className="mt-3 space-y-2 text-sm">
+            {ipHistory.map((item) => (
+              <li key={item.id} className="rounded border border-slate-800 bg-slate-950 p-2">
+                {item.event_type} • {new Date(item.occurred_at).toLocaleString()}
+              </li>
+            ))}
+            {ipHistory.length === 0 ? <li className="text-slate-400">No IP history.</li> : null}
+          </ul>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold">User History</h3>
+          <ul className="mt-3 space-y-2 text-sm">
+            {userHistory.map((item) => (
+              <li key={item.id} className="rounded border border-slate-800 bg-slate-950 p-2">
+                {item.event_type} • {new Date(item.occurred_at).toLocaleString()}
+              </li>
+            ))}
+            {userHistory.length === 0 ? <li className="text-slate-400">No user history.</li> : null}
+          </ul>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+        <h3 className="font-semibold">Related Alerts</h3>
+        <ul className="mt-3 space-y-2 text-sm">
+          {relatedAlerts.map((item) => (
+            <li key={item.id} className="rounded border border-slate-800 bg-slate-950 p-2">
+              {item.title} • {item.status} • {item.severity}
+            </li>
+          ))}
+          {relatedAlerts.length === 0 ? <li className="text-slate-400">No related alerts.</li> : null}
+        </ul>
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">

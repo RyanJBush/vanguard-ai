@@ -38,10 +38,13 @@ Additional architecture notes are in [/docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `POST /api/events`
+- `POST /api/events/stream`
+- `POST /api/events/replay`
 - `GET /api/events`
 - `GET /api/events/{id}`
 - `GET /api/events/scenarios`
 - `POST /api/events/scenarios/{scenario_key}/seed`
+- `POST /api/events/simulations/run`
 - `GET /api/alerts`
 - `GET /api/alerts/{id}`
 - `PATCH /api/alerts/{id}/status`
@@ -58,6 +61,8 @@ Additional architecture notes are in [/docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 - `POST /api/incidents`
 - `GET /api/incidents/{id}`
 - `PATCH /api/incidents/{id}/status`
+- `POST /api/incidents/{id}/alerts`
+- `GET /api/incidents/{id}/timeline`
 - `GET /api/incidents/{id}/ai-wrapup`
 - `GET /api/jobs`
 - `POST /api/jobs/process-pending`

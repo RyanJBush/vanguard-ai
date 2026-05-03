@@ -45,6 +45,16 @@ export const api = {
     const response = await request('/api/events')
     return response.items ?? []
   },
+  getEvent: (id) => request(`/api/events/${id}`),
+  getEventsFiltered: async ({ username, source_ip, event_type, page_size = 20 } = {}) => {
+    const params = new URLSearchParams()
+    if (username) params.set('username', username)
+    if (source_ip) params.set('source_ip', source_ip)
+    if (event_type) params.set('event_type', event_type)
+    params.set('page_size', String(page_size))
+    const response = await request(`/api/events?${params.toString()}`)
+    return response.items ?? []
+  },
   createEventsBatch: (payload) =>
     request('/api/events/batch', {
       method: 'POST',
@@ -55,6 +65,10 @@ export const api = {
     request(`/api/events/scenarios/${scenarioKey}/seed`, {
       method: 'POST',
     }),
+  runSimulation: () =>
+    request('/api/events/simulations/run', {
+      method: 'POST',
+    }),
   createEvent: (payload) =>
     request('/api/events', {
       method: 'POST',
@@ -62,6 +76,10 @@ export const api = {
     }),
   getAlerts: async () => {
     const response = await request('/api/alerts')
+    return response.items ?? []
+  },
+  getRelatedAlerts: async (correlationId) => {
+    const response = await request(`/api/alerts?correlation_id=${encodeURIComponent(correlationId)}`)
     return response.items ?? []
   },
   getAlert: (id) => request(`/api/alerts/${id}`),
