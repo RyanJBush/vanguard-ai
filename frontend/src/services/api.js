@@ -65,6 +65,10 @@ export const api = {
     request(`/api/events/scenarios/${scenarioKey}/seed`, {
       method: 'POST',
     }),
+  runSimulation: () =>
+    request('/api/events/simulations/run', {
+      method: 'POST',
+    }),
   createEvent: (payload) =>
     request('/api/events', {
       method: 'POST',

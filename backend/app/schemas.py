@@ -222,6 +222,14 @@ class SeedScenarioIngestResult(BaseModel):
     alerts_generated: int
 
 
+class RunSimulationResponse(BaseModel):
+    simulation: str
+    scenarios_executed: list[str]
+    events_ingested: int
+    detections_generated: int
+    alerts_generated: int
+
+
 class EventIngestResponse(BaseModel):
     event: EventOut
     detections: list[DetectionOut]

@@ -15,6 +15,7 @@ from app.schemas import (
     EventListResponse,
     EventOut,
     PaginationMeta,
+    RunSimulationResponse,
     ReplayEventsRequest,
     ReplayEventsResponse,
     SeedScenarioIngestResult,
@@ -330,6 +331,45 @@ def seed_event_scenario(
     return SeedScenarioIngestResult(
         scenario=scenario_key,
         events_ingested=len(events),
+        detections_generated=detections_generated,
+        alerts_generated=alerts_generated,
+    )
+
+
+@router.post("/simulations/run", response_model=RunSimulationResponse)
+def run_demo_simulation(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(Role.admin, Role.detection_engineer)),
+):
+    scenario_keys = ["brute_force_login_attack", "suspicious_ip_access", "api_abuse_spike"]
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    events_ingested = 0
+    detections_generated = 0
+    alerts_generated = 0
+
+    for scenario_key in scenario_keys:
+        events = build_scenario_events(
+            scenario_key=scenario_key,
+            organization_id=current_user.organization_id,
+            now=now,
+        )
+        db.add_all(events)
+        db.flush()
+        events_ingested += len(events)
+        for event in events:
+            job = enqueue_detection_job(
+                db,
+                organization_id=current_user.organization_id,
+                event_id=event.id,
+            )
+            generated_detections, generated_alerts = process_detection_job(db, job)
+            detections_generated += generated_detections
+            alerts_generated += generated_alerts
+    db.commit()
+    return RunSimulationResponse(
+        simulation="soc_attack_chain",
+        scenarios_executed=scenario_keys,
+        events_ingested=events_ingested,
         detections_generated=detections_generated,
         alerts_generated=alerts_generated,
     )

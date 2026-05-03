@@ -44,6 +44,7 @@ Additional architecture notes are in [/docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 - `GET /api/events/{id}`
 - `GET /api/events/scenarios`
 - `POST /api/events/scenarios/{scenario_key}/seed`
+- `POST /api/events/simulations/run`
 - `GET /api/alerts`
 - `GET /api/alerts/{id}`
 - `PATCH /api/alerts/{id}/status`

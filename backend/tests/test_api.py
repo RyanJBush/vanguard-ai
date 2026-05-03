@@ -838,3 +838,13 @@ def test_alert_and_event_filtering_for_investigation_views(client: TestClient):
     events = client.get("/api/events?username=investigator&source_ip=203.0.113.66", headers=headers)
     assert events.status_code == 200
     assert len(events.json()["items"]) >= 1
+
+
+def test_run_simulation_endpoint(client: TestClient):
+    headers = auth_headers(client)
+    response = client.post("/api/events/simulations/run", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["simulation"] == "soc_attack_chain"
+    assert body["events_ingested"] >= 30
+    assert body["alerts_generated"] >= 1

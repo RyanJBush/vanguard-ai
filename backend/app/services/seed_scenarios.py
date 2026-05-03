@@ -14,6 +14,27 @@ class SeedScenarioDefinition:
 
 
 SCENARIO_DEFINITIONS: dict[str, SeedScenarioDefinition] = {
+    "brute_force_login_attack": SeedScenarioDefinition(
+        key="brute_force_login_attack",
+        title="Brute Force Login Attack",
+        description="Rapid failed logins from one source against a privileged account.",
+        log_types=("auth",),
+        expected_detections=("brute_force_login_rule", "high_volume_failed_access_anomaly"),
+    ),
+    "suspicious_ip_access": SeedScenarioDefinition(
+        key="suspicious_ip_access",
+        title="Suspicious IP Multi-User Access",
+        description="One external IP fans out across users and eventually lands a successful login.",
+        log_types=("auth",),
+        expected_detections=("suspicious_ip_behavior_rule",),
+    ),
+    "api_abuse_spike": SeedScenarioDefinition(
+        key="api_abuse_spike",
+        title="API Abuse Spike",
+        description="Request burst pattern intended to trigger abnormal request spike detection.",
+        log_types=("api",),
+        expected_detections=("abnormal_request_spike_rule",),
+    ),
     "credential_access_password_spray": SeedScenarioDefinition(
         key="credential_access_password_spray",
         title="Credential Access: Password Spray",
@@ -70,6 +91,82 @@ def build_scenario_events(*, scenario_key: str, organization_id: int, now: datet
                 },
             )
             for minute_offset in range(12, 5, -1)
+        ]
+
+    if scenario_key == "brute_force_login_attack":
+        return [
+            Event(
+                organization_id=organization_id,
+                source="auth",
+                source_ip="198.51.100.200",
+                username="admin-user",
+                event_type="login_failed",
+                severity="high",
+                message="Admin login failed: invalid credential",
+                occurred_at=now - timedelta(minutes=offset),
+                event_metadata={"log_type": "auth", "scenario": scenario_key, "known_benign": False},
+            )
+            for offset in range(10, 3, -1)
+        ]
+
+    if scenario_key == "suspicious_ip_access":
+        events = []
+        for idx, username in enumerate(["jdoe", "asmith", "finance-user", "platform-admin"]):
+            events.append(
+                Event(
+                    organization_id=organization_id,
+                    source="auth",
+                    source_ip="203.0.113.201",
+                    username=username,
+                    event_type="login_failed",
+                    severity="medium",
+                    message=f"Failed login attempt for {username}",
+                    occurred_at=now - timedelta(minutes=15 - idx),
+                    event_metadata={"log_type": "auth", "scenario": scenario_key, "known_benign": False},
+                )
+            )
+        events.extend(
+            [
+                Event(
+                    organization_id=organization_id,
+                    source="auth",
+                    source_ip="203.0.113.201",
+                    username="jdoe",
+                    event_type="access_denied",
+                    severity="medium",
+                    message="Access denied after failed MFA",
+                    occurred_at=now - timedelta(minutes=8),
+                    event_metadata={"log_type": "auth", "scenario": scenario_key, "known_benign": False},
+                ),
+                Event(
+                    organization_id=organization_id,
+                    source="auth",
+                    source_ip="203.0.113.201",
+                    username="jdoe",
+                    event_type="login_success",
+                    severity="high",
+                    message="Suspicious successful login after repeated failures",
+                    occurred_at=now - timedelta(minutes=6),
+                    event_metadata={"log_type": "auth", "scenario": scenario_key, "known_benign": False},
+                ),
+            ]
+        )
+        return events
+
+    if scenario_key == "api_abuse_spike":
+        return [
+            Event(
+                organization_id=organization_id,
+                source="api_gateway",
+                source_ip="198.51.100.250",
+                username="api-client-01",
+                event_type="api_request",
+                severity="medium",
+                message="GET /v1/reports/export",
+                occurred_at=now - timedelta(seconds=idx * 10),
+                event_metadata={"log_type": "api", "scenario": scenario_key, "known_benign": False},
+            )
+            for idx in range(30)
         ]
 
     if scenario_key == "identity_privilege_escalation":
