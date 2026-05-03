@@ -67,6 +67,7 @@ class DetectionOut(BaseModel):
     severity: str
     confidence_score: float
     explanation: str
+    evidence: list[dict]
     mitre_techniques: list[str]
     recommended_next_steps: str
     created_at: datetime
@@ -84,6 +85,7 @@ class AlertOut(BaseModel):
     status: AlertStatus
     confidence_score: float
     explanation: str
+    evidence: list[dict]
     mitre_techniques: list[str]
     correlation_id: str
     incident_id: int | None
@@ -220,6 +222,26 @@ class BatchEventIngestRequest(BaseModel):
 
 class BatchEventIngestResponse(BaseModel):
     events_ingested: int
+    detections_generated: int
+    alerts_generated: int
+    job_ids: list[int]
+
+
+class StreamEventIngestRequest(BaseModel):
+    events: list[EventCreate] = Field(min_length=1, max_length=500)
+    inter_event_delay_ms: int = Field(default=0, ge=0, le=2000)
+    defer_detection: bool = False
+
+
+class ReplayEventsRequest(BaseModel):
+    from_timestamp: datetime
+    to_timestamp: datetime
+    speed_multiplier: float = Field(default=1.0, ge=0.1, le=50.0)
+    defer_detection: bool = False
+
+
+class ReplayEventsResponse(BaseModel):
+    replayed_events: int
     detections_generated: int
     alerts_generated: int
     job_ids: list[int]
