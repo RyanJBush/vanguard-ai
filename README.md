@@ -38,6 +38,8 @@ Additional architecture notes are in [/docs/ARCHITECTURE.md](docs/ARCHITECTURE.m
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `POST /api/events`
+- `POST /api/events/stream`
+- `POST /api/events/replay`
 - `GET /api/events`
 - `GET /api/events/{id}`
 - `GET /api/events/scenarios`

@@ -227,6 +227,26 @@ class BatchEventIngestResponse(BaseModel):
     job_ids: list[int]
 
 
+class StreamEventIngestRequest(BaseModel):
+    events: list[EventCreate] = Field(min_length=1, max_length=500)
+    inter_event_delay_ms: int = Field(default=0, ge=0, le=2000)
+    defer_detection: bool = False
+
+
+class ReplayEventsRequest(BaseModel):
+    from_timestamp: datetime
+    to_timestamp: datetime
+    speed_multiplier: float = Field(default=1.0, ge=0.1, le=50.0)
+    defer_detection: bool = False
+
+
+class ReplayEventsResponse(BaseModel):
+    replayed_events: int
+    detections_generated: int
+    alerts_generated: int
+    job_ids: list[int]
+
+
 class PaginationMeta(BaseModel):
     page: int
     page_size: int
