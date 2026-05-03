@@ -22,6 +22,7 @@ class DetectionSignal:
         dedup_window_minutes: int,
         correlation_entity: str,
         detection_method: str,
+        evidence: list[dict] | None = None,
     ):
         self.name = name
         self.severity = severity
@@ -32,6 +33,7 @@ class DetectionSignal:
         self.dedup_window_minutes = dedup_window_minutes
         self.correlation_entity = correlation_entity
         self.detection_method = detection_method
+        self.evidence = evidence or []
 
     @property
     def correlation_id(self) -> str:
@@ -43,6 +45,7 @@ def _signal_from_catalog(
     confidence: float,
     explanation: str,
     correlation_entity: str,
+    evidence: list[dict] | None = None,
 ) -> DetectionSignal:
     return DetectionSignal(
         name=definition.key,
@@ -54,6 +57,7 @@ def _signal_from_catalog(
         dedup_window_minutes=definition.dedup_window_minutes,
         correlation_entity=correlation_entity,
         detection_method=("anomaly" if "anomaly" in definition.key else "rule"),
+        evidence=evidence,
     )
 
 
@@ -61,18 +65,19 @@ def _as_naive_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
 
 
-def _failed_logins_same_ip(db: Session, event: Event) -> int:
-    cutoff = event.occurred_at - timedelta(hours=1)
-    return (
-        db.query(Event)
-        .filter(
-            Event.organization_id == event.organization_id,
-            Event.source_ip == event.source_ip,
-            Event.event_type == "login_failed",
-            Event.occurred_at >= cutoff,
-        )
-        .count()
-    )
+def _event_evidence(events: list[Event], max_items: int = 10) -> list[dict]:
+    ordered = sorted(events, key=lambda item: item.occurred_at, reverse=True)
+    return [
+        {
+            "event_id": item.id,
+            "event_type": item.event_type,
+            "occurred_at": item.occurred_at.isoformat(),
+            "source_ip": item.source_ip,
+            "username": item.username,
+            "status": item.status,
+        }
+        for item in ordered[:max_items]
+    ]
 
 
 def _failed_access_recent(db: Session, event: Event, minutes: int = 10) -> int:
@@ -89,32 +94,46 @@ def _failed_access_recent(db: Session, event: Event, minutes: int = 10) -> int:
 
 
 def _recent_login_geolocations(db: Session, event: Event, minutes: int = 60) -> set[str]:
+    return {
+        item.event_metadata.get("geolocation")
+        for item in _recent_login_success_events(db, event, minutes=minutes)
+        if isinstance(item.event_metadata, dict) and item.event_metadata.get("geolocation")
+    }
+
+
+def _recent_login_success_events(db: Session, event: Event, minutes: int = 60) -> list[Event]:
     if not event.username:
-        return set()
-    cutoff = event.occurred_at - timedelta(minutes=minutes)
-    rows = (
-        db.query(Event.event_metadata)
+        return []
+    lower_bound = event.occurred_at - timedelta(minutes=minutes)
+    return (
+        db.query(Event)
         .filter(
             Event.organization_id == event.organization_id,
             Event.username == event.username,
             Event.event_type == "login_success",
-            Event.occurred_at >= cutoff,
+            Event.occurred_at >= lower_bound,
             Event.id != event.id,
         )
         .all()
     )
-    return {
-        metadata.get("geolocation")
-        for (metadata,) in rows
-        if isinstance(metadata, dict) and metadata.get("geolocation")
-    }
 
 
 def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
     signals: list[DetectionSignal] = []
 
     if event.event_type == "login_failed" and event.source_ip:
-        failures = _failed_logins_same_ip(db, event)
+        cutoff = event.occurred_at - timedelta(hours=1)
+        failed_events = (
+            db.query(Event)
+            .filter(
+                Event.organization_id == event.organization_id,
+                Event.source_ip == event.source_ip,
+                Event.event_type == "login_failed",
+                Event.occurred_at >= cutoff,
+            )
+            .all()
+        )
+        failures = len(failed_events)
         if failures >= 5:
             definition = DETECTION_CATALOG["brute_force_login_rule"]
             if is_detection_enabled(
@@ -131,6 +150,7 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                             f"{event.source_ip} in the past hour."
                         ),
                         correlation_entity=event.source_ip,
+                        evidence=_event_evidence(failed_events),
                     ),
                 )
 
@@ -230,7 +250,8 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
     if event.event_type == "login_success" and event.username:
         current_geo = event.event_metadata.get("geolocation")
         if current_geo:
-            prior_geos = _recent_login_geolocations(db, event, minutes=45)
+            prior_login_events = _recent_login_success_events(db, event, minutes=1440)
+            prior_geos = _recent_login_geolocations(db, event, minutes=1440)
             if prior_geos and current_geo not in prior_geos:
                 definition = DETECTION_CATALOG["impossible_travel_login_anomaly"]
                 if is_detection_enabled(
@@ -247,8 +268,70 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                                 f"from {', '.join(sorted(prior_geos))} within 45 minutes."
                             ),
                             correlation_entity=event.username,
+                            evidence=_event_evidence([event, *prior_login_events]),
                         ),
                     )
+
+    if event.event_type == "api_request" and event.source_ip:
+        window_start = event.occurred_at - timedelta(minutes=5)
+        api_events = (
+            db.query(Event)
+            .filter(
+                Event.organization_id == event.organization_id,
+                Event.event_type == "api_request",
+                Event.source_ip == event.source_ip,
+                Event.occurred_at >= window_start,
+            )
+            .all()
+        )
+        if len(api_events) >= 25:
+            definition = DETECTION_CATALOG["abnormal_request_spike_rule"]
+            if is_detection_enabled(db, organization_id=event.organization_id, detection_key=definition.key):
+                signals.append(
+                    _signal_from_catalog(
+                        definition=definition,
+                        confidence=min(0.98, 0.7 + (len(api_events) / 100)),
+                        explanation=(
+                            f"{len(api_events)} API requests from {event.source_ip} in five minutes, "
+                            "exceeding normal burst thresholds."
+                        ),
+                        correlation_entity=event.source_ip,
+                        evidence=_event_evidence(api_events),
+                    )
+                )
+
+    if event.source_ip:
+        suspicious_window = event.occurred_at - timedelta(minutes=30)
+        ip_events = (
+            db.query(Event)
+            .filter(
+                Event.organization_id == event.organization_id,
+                Event.source_ip == event.source_ip,
+                Event.occurred_at >= suspicious_window,
+            )
+            .all()
+        )
+        targeted_users = {candidate.username for candidate in ip_events if candidate.username}
+        failed_attempts = sum(
+            1 for candidate in ip_events if candidate.event_type in {"login_failed", "access_denied"}
+        )
+        success_logins = sum(1 for candidate in ip_events if candidate.event_type == "login_success")
+        if len(targeted_users) >= 3 and failed_attempts >= 6 and success_logins >= 1:
+            definition = DETECTION_CATALOG["suspicious_ip_behavior_rule"]
+            if is_detection_enabled(db, organization_id=event.organization_id, detection_key=definition.key):
+                signals.append(
+                    _signal_from_catalog(
+                        definition=definition,
+                        confidence=min(0.99, 0.82 + (len(targeted_users) / 50)),
+                        explanation=(
+                            f"IP {event.source_ip} targeted {len(targeted_users)} users with "
+                            f"{failed_attempts} failed attempts and {success_logins} successful login(s) "
+                            "in 30 minutes."
+                        ),
+                        correlation_entity=event.source_ip,
+                        evidence=_event_evidence(ip_events),
+                    )
+                )
 
     return signals
 
@@ -274,6 +357,7 @@ def persist_detections_and_alerts(db: Session, event: Event, signals: list[Detec
             severity=signal.severity,
             confidence_score=signal.confidence,
             explanation=signal.explanation,
+            evidence=signal.evidence,
             mitre_techniques=signal.mitre_techniques,
             recommended_next_steps=signal.recommendation,
         )
@@ -325,6 +409,7 @@ def persist_detections_and_alerts(db: Session, event: Event, signals: list[Detec
             severity=signal.severity,
             confidence_score=signal.confidence,
             explanation=signal.explanation,
+            evidence=signal.evidence,
             mitre_techniques=signal.mitre_techniques,
             recommended_next_steps=signal.recommendation,
             correlation_id=signal.correlation_id,

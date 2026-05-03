@@ -81,6 +81,28 @@ DETECTION_CATALOG: dict[str, DetectionDefinition] = {
         description="Detects successful login activity from different geolocations within an implausible interval.",
         dedup_window_minutes=90,
     ),
+    "abnormal_request_spike_rule": DetectionDefinition(
+        key="abnormal_request_spike_rule",
+        title="Abnormal Request Spike",
+        severity="medium",
+        default_confidence=0.76,
+        mitre_techniques=("T1498",),
+        mitre_tactics=("Impact",),
+        recommendation="Rate-limit the source, inspect endpoint access patterns, and validate client identity.",
+        description="Detects sharp increases in API request volumes over a short rolling window.",
+        dedup_window_minutes=20,
+    ),
+    "suspicious_ip_behavior_rule": DetectionDefinition(
+        key="suspicious_ip_behavior_rule",
+        title="Suspicious IP Behavior",
+        severity="critical",
+        default_confidence=0.9,
+        mitre_techniques=("T1078", "T1110"),
+        mitre_tactics=("Initial Access", "Credential Access"),
+        recommendation="Block the source IP, reset impacted credentials, and hunt for lateral movement.",
+        description="Flags IP addresses that attempt access across many users and mixed outcomes.",
+        dedup_window_minutes=60,
+    ),
 }
 
 
