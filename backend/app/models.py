@@ -15,9 +15,12 @@ class Role(str, enum.Enum):
 
 
 class AlertStatus(str, enum.Enum):
+    new = "new"
     open = "open"
     triaged = "triaged"
     investigating = "investigating"
+    resolved = "resolved"
+    false_positive = "false_positive"
     escalated = "escalated"
     closed = "closed"
 
@@ -87,6 +90,7 @@ class Detection(Base):
     severity: Mapped[str] = mapped_column(String(20), index=True)
     confidence_score: Mapped[float] = mapped_column(Float)
     explanation: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[list[dict]] = mapped_column(JSON, default=list)
     mitre_techniques: Mapped[list[str]] = mapped_column(JSON, default=list)
     recommended_next_steps: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -107,6 +111,7 @@ class Alert(Base):
     status: Mapped[AlertStatus] = mapped_column(Enum(AlertStatus), default=AlertStatus.open)
     confidence_score: Mapped[float] = mapped_column(Float)
     explanation: Mapped[str] = mapped_column(Text)
+    evidence: Mapped[list[dict]] = mapped_column(JSON, default=list)
     mitre_techniques: Mapped[list[str]] = mapped_column(JSON, default=list)
     correlation_id: Mapped[str] = mapped_column(String(255), index=True)
     incident_id: Mapped[int | None] = mapped_column(ForeignKey("incidents.id"), nullable=True, index=True)

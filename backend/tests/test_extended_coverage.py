@@ -350,6 +350,8 @@ class TestDetectionCatalog:
         "high_volume_failed_access_anomaly",
         "threat_intel_match_indicator",
         "impossible_travel_login_anomaly",
+        "abnormal_request_spike_rule",
+        "suspicious_ip_behavior_rule",
     }
 
     def test_list_returns_all_definitions(self):

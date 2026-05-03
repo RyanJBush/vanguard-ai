@@ -85,6 +85,20 @@ export default function EventsPage() {
     }
   }
 
+  async function runSimulation() {
+    setFeedback('')
+    setError('')
+    try {
+      const result = await api.runSimulation()
+      await loadEvents()
+      setFeedback(
+        `Simulation complete (${result.scenarios_executed.length} scenarios, ${result.events_ingested} events, ${result.alerts_generated} alerts).`,
+      )
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
@@ -166,6 +180,9 @@ export default function EventsPage() {
           </select>
           <button onClick={seedScenario} className="rounded-md bg-fuchsia-500 px-3 py-2 text-sm font-semibold text-white hover:bg-fuchsia-400">
             Seed Scenario
+          </button>
+          <button onClick={runSimulation} className="rounded-md bg-rose-500 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-400">
+            Run Simulation
           </button>
         </div>
       </section>
