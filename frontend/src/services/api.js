@@ -47,6 +47,9 @@ export const api = {
   },
   getEvent: (id) => request(`/api/events/${id}`),
   getEventsFiltered: async ({ username, source_ip, event_type, page_size = 20 } = {}) => {
+    if (!username && !source_ip && !event_type) {
+      return []
+    }
     const params = new URLSearchParams()
     if (username) params.set('username', username)
     if (source_ip) params.set('source_ip', source_ip)

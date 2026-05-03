@@ -737,6 +737,8 @@ def test_event_replay_creates_new_events(client: TestClient):
     first = client.post("/api/events", json=base_payload, headers=headers)
     assert first.status_code == 200
 
+    from_ts = "2026-05-01T00:00:00"
+    to_ts = "2026-05-04T00:00:00"
     from_ts = "2020-01-01T00:00:00"
     to_ts = "2030-01-01T00:00:00"
     replay = client.post(
@@ -753,6 +755,11 @@ def test_event_replay_creates_new_events(client: TestClient):
     body = replay.json()
     assert body["replayed_events"] >= 1
     assert len(body["job_ids"]) == body["replayed_events"]
+
+    events = client.get("/api/events?page=1&page_size=5", headers=headers).json()["items"]
+    replayed = next((item for item in events if item["message"].startswith("[replay x2.0]")), None)
+    assert replayed is not None
+    assert replayed["occurred_at"] >= from_ts
 
 
 def test_alert_lifecycle_supports_false_positive_status(client: TestClient):

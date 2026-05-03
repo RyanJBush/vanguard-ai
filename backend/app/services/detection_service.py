@@ -268,7 +268,7 @@ def detect_event(db: Session, event: Event) -> list[DetectionSignal]:
                             confidence=0.84,
                             explanation=(
                                 f"User {event.username} logged in from {current_geo} after recent login(s) "
-                                f"from {', '.join(sorted(prior_geos))} within 45 minutes."
+                                f"from {', '.join(sorted(prior_geos))} within the last 24 hours."
                             ),
                             correlation_entity=event.username,
                             evidence=_event_evidence([event, *prior_login_events]),

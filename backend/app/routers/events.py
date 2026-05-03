@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from datetime import datetime, timezone
 from time import sleep
 
@@ -216,6 +217,8 @@ def replay_events(
     job_ids: list[int] = []
     replayed_events = 0
     for src in source_events:
+        seconds_offset = max(0, (src.occurred_at - payload.from_timestamp).total_seconds())
+        replay_seconds = seconds_offset / payload.speed_multiplier
         clone = Event(
             organization_id=current_user.organization_id,
             source=src.source,
@@ -226,6 +229,7 @@ def replay_events(
             status=src.status,
             message=f"[replay x{payload.speed_multiplier}] {src.message}",
             event_metadata=dict(src.event_metadata or {}),
+            occurred_at=(payload.from_timestamp + timedelta(seconds=replay_seconds)),
             occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(clone)
